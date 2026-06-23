@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"fmt"
 	"io"
 	"io/fs"
 	"log/slog"
+	"slices"
 	"strings"
 
 	"github.com/go-app-blazar/blazar/blazar"
@@ -28,49 +30,105 @@ type IndexPage struct {
 	districtRates   []DistrictRate
 	countyRates     []CountyRate
 
-	maximumRateRatio             float64
-	selectedSchoolDistrict       string
-	nonResidentialRateMultiplier float64
+	selectedSchoolDistrict string
+
+	maximumRateMultiplier float64
+
 	residentialRate              float64
 	nonResidentialRate           float64
+	nonResidentialRateMultiplier float64
 	apartmentsAreResidential     bool
 
 	propertyClassResults []PropertyClassResult
 	totalTax             float64
+
+	proposedPropertyClassResults []PropertyClassResult
+	proposedTotalTax             float64
 }
 
 var printer *message.Printer = message.NewPrinter(language.English)
 
-func (c *IndexPage) queryPrefix() string {
-	residentialPropertyClasses := []string{
-		"FARMLAND",
-		"RESIDENTIAL",
-	}
-	/*
-			return strings.TrimSpace(`
-		WITH
-		countyrates AS (SELECT 0.21 AS votech2024, 0.0431 AS votech2025),
-		districtrates AS (SELECT 'christina' AS district, 3.224 AS rate2024, 0.6150 AS rate2025, 1.2102 AS nrate2025 UNION SELECT 'brandywine' AS district, 2.7685 AS rate2024, 0.5609 AS rate2025, 1.0382 AS nrate2025 UNION SELECT 'colonial' AS district, 2.296 AS rate2024, 0.4523 AS rate2025, 0.74294 AS nrate2025 UNION SELECT 'redclay' AS district, 2.658 AS rate2024, 0.5918 AS rate2025, 0.99237 AS nrate2025 UNION SELECT 'appoquinimink' AS district, 3.1454 AS rate2024, 0.57692 AS rate2025, 1.15378 AS nrate2025),
-		credit2025 AS ( SELECT parceltax.parcelid AS parcelid, CAST(100 * ( parcelassessment.school_taxable * (districtrates.rate2025 + countyrates.votech2025)/100 - ( school_amount_paid + school_principal_due ) ) AS INT) / 100 AS credit FROM parcel INNER JOIN parceltax USING(parcelid) INNER JOIN parcelassessment ON parceltax.parcelid = parcelassessment.parcelid AND parcelassessment.type = 'current' INNER JOIN districtrates USING(district) CROSS JOIN countyrates WHERE parceltax.year = '2025A' ),
-		parceltax2024 AS ( SELECT parceltax.parcelid AS parcelid, ( school_amount_paid + school_principal_due ) * (districtrates.rate2024 / (districtrates.rate2024+countyrates.votech2024)) + credit2025.credit AS total FROM parcel INNER JOIN parceltax USING(parcelid) INNER JOIN credit2025 USING(parcelid) INNER JOIN districtrates USING(district) CROSS JOIN countyrates WHERE parceltax.year = '2024'),
-		parcelvalue2024 AS ( SELECT parcel.parcelid AS parcelid, parceltax2024.total / (districtrates.rate2024/100) AS total FROM parcel INNER JOIN parceltax2024 USING(parcelid) INNER JOIN districtrates USING (district) ),
-		parceltax2025 AS ( SELECT parcelassessment.parcelid AS parcelid, CAST(100 * parcelassessment.school_taxable * CASE WHEN parcel.property_class IN ('`+strings.Join(residentialPropertyClasses, "', '")+`') THEN districtrates.rate2025 ELSE districtrates.nrate2025 END/100 AS INT) / 100 + credit2025.credit AS total FROM parcel INNER JOIN parcelassessment USING(parcelid) INNER JOIN credit2025 USING(parcelid) INNER JOIN districtrates USING(district) CROSS JOIN countyrates WHERE parcelassessment.type = 'current' ),
-		parcelvalue2025 AS ( SELECT parcelid, county_taxable, school_taxable, school_taxable AS total FROM parcelassessment INNER JOIN parcel USING(parcelid) WHERE type = 'current' )
-		`) + "\n"
-	*/
-	return strings.TrimSpace(`
+/*
+		return strings.TrimSpace(`
 	WITH
+	countyrates AS (SELECT 0.21 AS votech2024, 0.0431 AS votech2025),
+	districtrates AS (SELECT 'christina' AS district, 3.224 AS rate2024, 0.6150 AS rate2025, 1.2102 AS nrate2025 UNION SELECT 'brandywine' AS district, 2.7685 AS rate2024, 0.5609 AS rate2025, 1.0382 AS nrate2025 UNION SELECT 'colonial' AS district, 2.296 AS rate2024, 0.4523 AS rate2025, 0.74294 AS nrate2025 UNION SELECT 'redclay' AS district, 2.658 AS rate2024, 0.5918 AS rate2025, 0.99237 AS nrate2025 UNION SELECT 'appoquinimink' AS district, 3.1454 AS rate2024, 0.57692 AS rate2025, 1.15378 AS nrate2025),
+	credit2025 AS ( SELECT parceltax.parcelid AS parcelid, CAST(100 * ( parcelassessment.school_taxable * (districtrates.rate2025 + countyrates.votech2025)/100 - ( school_amount_paid + school_principal_due ) ) AS INT) / 100 AS credit FROM parcel INNER JOIN parceltax USING(parcelid) INNER JOIN parcelassessment ON parceltax.parcelid = parcelassessment.parcelid AND parcelassessment.type = 'current' INNER JOIN districtrates USING(district) CROSS JOIN countyrates WHERE parceltax.year = '2025A' ),
+	parceltax2024 AS ( SELECT parceltax.parcelid AS parcelid, ( school_amount_paid + school_principal_due ) * (districtrates.rate2024 / (districtrates.rate2024+countyrates.votech2024)) + credit2025.credit AS total FROM parcel INNER JOIN parceltax USING(parcelid) INNER JOIN credit2025 USING(parcelid) INNER JOIN districtrates USING(district) CROSS JOIN countyrates WHERE parceltax.year = '2024'),
+	parcelvalue2024 AS ( SELECT parcel.parcelid AS parcelid, parceltax2024.total / (districtrates.rate2024/100) AS total FROM parcel INNER JOIN parceltax2024 USING(parcelid) INNER JOIN districtrates USING (district) ),
+	parceltax2025 AS ( SELECT parcelassessment.parcelid AS parcelid, CAST(100 * parcelassessment.school_taxable * CASE WHEN parcel.property_class IN ('`+strings.Join(residentialPropertyClasses, "', '")+`') THEN districtrates.rate2025 ELSE districtrates.nrate2025 END/100 AS INT) / 100 + credit2025.credit AS total FROM parcel INNER JOIN parcelassessment USING(parcelid) INNER JOIN credit2025 USING(parcelid) INNER JOIN districtrates USING(district) CROSS JOIN countyrates WHERE parcelassessment.type = 'current' ),
+	parcelvalue2025 AS ( SELECT parcelid, county_taxable, school_taxable, school_taxable AS total FROM parcelassessment INNER JOIN parcel USING(parcelid) WHERE type = 'current' )
+	`) + "\n"
+*/
+
+func (c *IndexPage) query(query string) string {
+	var queryPrefix string
+	{
+		residentialPropertyClasses := []string{
+			"FARMLAND",
+			"RESIDENTIAL",
+		}
+
+		queryPrefix = strings.TrimSpace(`
+WITH
 countyrates AS (SELECT 0.21 AS votech2024, 0.0431 AS votech2025),
 districtrates AS (SELECT 'christina' AS district, 3.224 AS rate2024, 0.6150 AS rate2025, 1.2102 AS nrate2025 UNION SELECT 'brandywine' AS district, 2.7685 AS rate2024, 0.5609 AS rate2025, 1.0382 AS nrate2025 UNION SELECT 'colonial' AS district, 2.296 AS rate2024, 0.4523 AS rate2025, 0.74294 AS nrate2025 UNION SELECT 'redclay' AS district, 2.658 AS rate2024, 0.5918 AS rate2025, 0.99237 AS nrate2025 UNION SELECT 'appoquinimink' AS district, 3.1454 AS rate2024, 0.57692 AS rate2025, 1.15378 AS nrate2025),
 credit2025 AS ( SELECT parceltax.parcelid AS parcelid, CAST(100 * ( parcelassessment.school_taxable * (districtrates.rate2025 + countyrates.votech2025)/100 - ( school_amount_paid + school_principal_due ) ) AS INT) / 100 AS credit FROM parcel INNER JOIN parceltax USING(parcelid) INNER JOIN parcelassessment ON parceltax.parcelid = parcelassessment.parcelid AND parcelassessment.type = 'current' INNER JOIN districtrates USING(district) CROSS JOIN countyrates WHERE parceltax.year = '2025A' ),
-parceltax2025 AS ( SELECT parcelassessment.parcelid AS parcelid, CAST(100 * parcelassessment.school_taxable * CASE WHEN parcel.property_class IN ('`+strings.Join(residentialPropertyClasses, "', '")+`') THEN districtrates.rate2025 ELSE districtrates.nrate2025 END/100 AS INT) / 100 + credit2025.credit AS total FROM parcel INNER JOIN parcelassessment USING(parcelid) INNER JOIN credit2025 USING(parcelid) INNER JOIN districtrates USING(district) CROSS JOIN countyrates WHERE parcelassessment.type = 'current' ),
-parcelvalue2025 AS ( SELECT parcelid, county_taxable, school_taxable, school_taxable AS total FROM parcelassessment INNER JOIN parcel USING(parcelid) WHERE type = 'current' )
-	`) + "\n"
+`)
+		if strings.Contains(query, "parcelvalue2025") {
+			queryPrefix += `
+parceltax2025 AS ( SELECT parcelassessment.parcelid AS parcelid, CAST(100 * parcelassessment.school_taxable * CASE WHEN parcel.property_class IN ('` + strings.Join(residentialPropertyClasses, "', '") + `') THEN districtrates.rate2025 ELSE districtrates.nrate2025 END/100 AS INT) / 100 + credit2025.credit AS total FROM parcel INNER JOIN parcelassessment USING(parcelid) INNER JOIN credit2025 USING(parcelid) INNER JOIN districtrates USING(district) CROSS JOIN countyrates WHERE parcelassessment.type = 'current' ),
+parcelvalue2025 AS ( SELECT parcelid, county_taxable, school_taxable, school_taxable AS total FROM parcelassessment INNER JOIN parcel USING(parcelid) WHERE type = 'current' ),
+`
+		}
+		if strings.Contains(query, "parcelvalue2024") {
+			queryPrefix += strings.TrimSpace(`
+parceltax2024 AS ( SELECT parceltax.parcelid AS parcelid, ( school_amount_paid + school_principal_due ) * (districtrates.rate2024 / (districtrates.rate2024+countyrates.votech2024)) + credit2025.credit AS total FROM parcel INNER JOIN parceltax USING(parcelid) INNER JOIN credit2025 USING(parcelid) INNER JOIN districtrates USING(district) CROSS JOIN countyrates WHERE parceltax.year = '2024'),
+parcelvalue2024 AS ( SELECT parcel.parcelid AS parcelid, parceltax2024.total / (districtrates.rate2024/100) AS total FROM parcel INNER JOIN parceltax2024 USING(parcelid) INNER JOIN districtrates USING (district) ),
+`)
+		}
+
+		queryPrefix = strings.TrimSpace(queryPrefix)
+		queryPrefix = strings.TrimRight(queryPrefix, ",")
+		queryPrefix += "\n"
+	}
+
+	output := queryPrefix + query
+	slog.InfoContext(context.TODO(), "IndexPage: Query", "query", output)
+	return output
 }
 
-func (c *IndexPage) query(query string) string {
-	output := c.queryPrefix() + query
-	slog.InfoContext(context.TODO(), "Query", "query", output)
+func (c *IndexPage) proposedQuery(query string) string {
+	var queryPrefix string
+	{
+		residentialPropertyClasses := []string{
+			"FARMLAND",
+			"RESIDENTIAL",
+		}
+		if c.apartmentsAreResidential {
+			residentialPropertyClasses = append(residentialPropertyClasses, "APARTMENT")
+		}
+
+		queryPrefix = strings.TrimSpace(`
+WITH
+countyrates AS (SELECT 0.21 AS votech2024, 0.0431 AS votech2025),
+districtrates AS (SELECT '` + c.selectedSchoolDistrict + `' AS district, ` + fmt.Sprintf("%f", c.residentialRate) + ` AS rate2025, ` + fmt.Sprintf("%f", c.residentialRate*c.nonResidentialRateMultiplier) + ` AS nrate2025),
+credit2025 AS ( SELECT parceltax.parcelid AS parcelid, CAST(100 * ( parcelassessment.school_taxable * (districtrates.rate2025 + countyrates.votech2025)/100 - ( school_amount_paid + school_principal_due ) ) AS INT) / 100 AS credit FROM parcel INNER JOIN parceltax USING(parcelid) INNER JOIN parcelassessment ON parceltax.parcelid = parcelassessment.parcelid AND parcelassessment.type = 'current' INNER JOIN districtrates USING(district) CROSS JOIN countyrates WHERE parceltax.year = '2025A' ),
+`)
+		if strings.Contains(query, "parcelvalue2025") {
+			queryPrefix += `
+parceltax2025 AS ( SELECT parcelassessment.parcelid AS parcelid, CAST(100 * parcelassessment.school_taxable * CASE WHEN parcel.property_class IN ('` + strings.Join(residentialPropertyClasses, "', '") + `') THEN districtrates.rate2025 ELSE districtrates.nrate2025 END/100 AS INT) / 100 + credit2025.credit AS total FROM parcel INNER JOIN parcelassessment USING(parcelid) INNER JOIN credit2025 USING(parcelid) INNER JOIN districtrates USING(district) CROSS JOIN countyrates WHERE parcelassessment.type = 'current' ),
+parcelvalue2025 AS ( SELECT parcelid, county_taxable, school_taxable, school_taxable AS total FROM parcelassessment INNER JOIN parcel USING(parcelid) WHERE type = 'current' ),
+`
+		}
+
+		queryPrefix = strings.TrimSpace(queryPrefix)
+		queryPrefix = strings.TrimRight(queryPrefix, ",")
+		queryPrefix += "\n"
+	}
+
+	output := queryPrefix + query
+	slog.InfoContext(context.TODO(), "IndexPage: Proposed query", "query", output)
 	return output
 }
 
@@ -100,35 +158,37 @@ type PropertyClassResult struct {
 func (c *IndexPage) OnMount(ctx app.Context) {
 	slog.InfoContext(ctx.Context, "IndexPage: OnMount")
 
+	c.maximumRateMultiplier = 2.0
+
 	subFS, err := fs.Sub(dataset.EmbeddedFS, "embedded")
 	if err != nil {
-		slog.ErrorContext(ctx.Context, "Error creating sub FS", "err", err)
+		slog.ErrorContext(ctx.Context, "IndexPage: Error creating sub FS", "err", err)
 		return
 	}
 
 	file, err := subFS.Open("database.county.sqlite.gz")
 	if err != nil {
-		slog.ErrorContext(ctx.Context, "Error opening file", "err", err)
+		slog.ErrorContext(ctx.Context, "IndexPage: Error opening file", "err", err)
 		return
 	}
 	defer file.Close()
 
 	gzipReader, err := gzip.NewReader(file)
 	if err != nil {
-		slog.ErrorContext(ctx.Context, "Error creating gzip reader", "err", err)
+		slog.ErrorContext(ctx.Context, "IndexPage: Error creating gzip reader", "err", err)
 		return
 	}
 
 	contents, err := io.ReadAll(gzipReader)
 	if err != nil {
-		slog.ErrorContext(ctx.Context, "Error reading file", "err", err)
+		slog.ErrorContext(ctx.Context, "IndexPage: Error reading file", "err", err)
 		return
 	}
 	readervfs.Create("database.county.sqlite", ioutil.NewSizeReaderAt(bytes.NewReader(contents)))
 
 	db, err := database.New(ctx.Context, "sqlite3", "file:database.county.sqlite?vfs=reader&cache=shared&parseTime=true")
 	if err != nil {
-		slog.ErrorContext(ctx.Context, "Error creating database", "err", err)
+		slog.ErrorContext(ctx.Context, "IndexPage: Error creating database", "err", err)
 		return
 	}
 
@@ -141,7 +201,7 @@ func (c *IndexPage) OnMount(ctx app.Context) {
 		Scan(&districtRates).
 		Error
 	if err != nil {
-		slog.ErrorContext(ctx.Context, "Error executing query", "err", err)
+		slog.ErrorContext(ctx.Context, "IndexPage: Error executing query", "err", err)
 		return
 	}
 	c.districtRates = districtRates
@@ -151,7 +211,7 @@ func (c *IndexPage) OnMount(ctx app.Context) {
 		Scan(&countyRates).
 		Error
 	if err != nil {
-		slog.ErrorContext(ctx.Context, "Error executing query", "err", err)
+		slog.ErrorContext(ctx.Context, "IndexPage: Error executing query", "err", err)
 		return
 	}
 	c.countyRates = countyRates
@@ -197,44 +257,52 @@ func (c *IndexPage) Render() app.UI {
 						}()...).
 						Bind(&c.selectedSchoolDistrict).
 						On("change", func(ctx app.Context, e app.Event) {
-							slog.InfoContext(ctx.Context, "School district changed", "selectedSchoolDistrict", c.selectedSchoolDistrict)
+							slog.InfoContext(ctx.Context, "IndexPage: School district changed", "selectedSchoolDistrict", c.selectedSchoolDistrict)
 
 							c.updateForNewSchoolDistrict(ctx)
 						}),
 				),
 			app.Div().
 				Body(
-					blazar.Input[float64]().
-						Label("Non-Residential Rate Multiplier").
-						Bind(&c.nonResidentialRateMultiplier).
-						On("change", func(ctx app.Context, e app.Event) {
-							slog.InfoContext(ctx.Context, "Non-Residential Rate Multiplier changed", "nonResidentialRateMultiplier", c.nonResidentialRateMultiplier)
-
-							c.updateForNewSchoolDistrict(ctx)
-						}),
-					blazar.Input[float64]().
-						Label("Residential Rate").
-						Bind(&c.residentialRate).
-						On("change", func(ctx app.Context, e app.Event) {
-							slog.InfoContext(ctx.Context, "Residential Rate changed", "residentialRate", c.residentialRate)
-
-							c.updateForNewSchoolDistrict(ctx)
-						}),
-					blazar.Input[float64]().
-						Label("Non-Residential Rate").
-						Bind(&c.nonResidentialRate).
-						On("change", func(ctx app.Context, e app.Event) {
-							slog.InfoContext(ctx.Context, "Non-Residential Rate changed", "nonResidentialRate", c.nonResidentialRate)
-
-							c.updateForNewSchoolDistrict(ctx)
-						}),
-					blazar.Input[bool]().
-						Label("Apartments are Residential").
-						Bind(&c.apartmentsAreResidential).
-						On("change", func(ctx app.Context, e app.Event) {
-							slog.InfoContext(ctx.Context, "Apartments are Residential changed", "apartmentsAreResidential", c.apartmentsAreResidential)
-
-							c.updateForNewSchoolDistrict(ctx)
+					blazar.Table[PropertyClassResult]().
+						Rows(c.propertyClassResults).
+						Columns([]blazar.TableColumn[PropertyClassResult]{
+							{
+								Name: "Property Class",
+								Value: func(row PropertyClassResult) any {
+									return row.PropertyClass
+								},
+							},
+							{
+								Name: "Property Count",
+								Value: func(row PropertyClassResult) any {
+									return printer.Sprintf("%d", row.PropertyCount)
+								},
+							},
+							{
+								Name: "Property Value",
+								Value: func(row PropertyClassResult) any {
+									return printer.Sprintf("$%.0f", row.PropertyValue)
+								},
+							},
+							{
+								Name: "Property Tax",
+								Value: func(row PropertyClassResult) any {
+									return printer.Sprintf("$%.0f", row.PropertyTax)
+								},
+							},
+							{
+								Name: "Average Value",
+								Value: func(row PropertyClassResult) any {
+									return printer.Sprintf("$%.0f", row.AverageValue)
+								},
+							},
+							{
+								Name: "Average Tax",
+								Value: func(row PropertyClassResult) any {
+									return printer.Sprintf("$%.0f", row.AverageTax)
+								},
+							},
 						}),
 				),
 			app.Div().
@@ -246,8 +314,68 @@ func (c *IndexPage) Render() app.UI {
 				),
 			app.Div().
 				Body(
+					blazar.Input[float64]().
+						Label("Maximum Rate Multiplier").
+						Bind(&c.maximumRateMultiplier).
+						On("change", func(ctx app.Context, e app.Event) {
+							slog.InfoContext(ctx.Context, "IndexPage: Maximum Rate Multiplier changed", "maximumRateMultiplier", c.maximumRateMultiplier)
+
+							c.updateMaximumRateMultiplier(ctx)
+						}),
+					blazar.Input[float64]().
+						Label("Non-Residential Rate Multiplier").
+						Bind(&c.nonResidentialRateMultiplier).
+						On("change", func(ctx app.Context, e app.Event) {
+							slog.InfoContext(ctx.Context, "IndexPage: Non-Residential Rate Multiplier changed", "nonResidentialRateMultiplier", c.nonResidentialRateMultiplier)
+
+							c.updateNonResidentialRateMultiplier(ctx)
+						}),
+					blazar.Input[float64]().
+						Label("Residential Rate").
+						Bind(&c.residentialRate).
+						On("change", func(ctx app.Context, e app.Event) {
+							slog.InfoContext(ctx.Context, "IndexPage: Residential Rate changed", "residentialRate", c.residentialRate)
+
+							c.updateResidentialRate(ctx)
+						}),
+					blazar.Input[float64]().
+						Label("Non-Residential Rate").
+						Bind(&c.nonResidentialRate).
+						On("change", func(ctx app.Context, e app.Event) {
+							slog.InfoContext(ctx.Context, "IndexPage: Non-Residential Rate changed", "nonResidentialRate", c.nonResidentialRate)
+
+							c.updateNonResidentialRate(ctx)
+						}),
+					blazar.Input[bool]().
+						Label("Apartments are Residential").
+						Bind(&c.apartmentsAreResidential).
+						On("change", func(ctx app.Context, e app.Event) {
+							slog.InfoContext(ctx.Context, "IndexPage: Apartments are Residential changed", "apartmentsAreResidential", c.apartmentsAreResidential)
+
+							c.updateApartmentsAreResidential(ctx)
+						}),
+				),
+			app.Div().
+				Body(
+					blazar.Button().
+						Label("Calculate").
+						On("click", func(ctx app.Context, e app.Event) {
+							slog.InfoContext(ctx.Context, "IndexPage: Calculate button clicked")
+
+							c.calculateProposedPropertyClassResults(ctx)
+						}),
+				),
+			app.Div().
+				Body(
+					blazar.Input[string]().
+						Label("Proposed Total Tax").
+						Disabled(true).
+						Value(printer.Sprintf("$%.0f", c.proposedTotalTax)),
+				),
+			app.Div().
+				Body(
 					blazar.Table[PropertyClassResult]().
-						Rows(c.propertyClassResults).
+						Rows(c.proposedPropertyClassResults).
 						Columns([]blazar.TableColumn[PropertyClassResult]{
 							{
 								Name: "Property Class",
@@ -335,7 +463,7 @@ GROUP BY parcel.property_class
 			Scan(&propertyClassResults).
 			Error
 		if err != nil {
-			slog.ErrorContext(ctx.Context, "Error executing query", "err", err)
+			slog.ErrorContext(ctx.Context, "IndexPage: Error executing query", "err", err)
 			return
 		}
 
@@ -345,6 +473,128 @@ GROUP BY parcel.property_class
 	c.totalTax = 0
 	for _, propertyClassResult := range c.propertyClassResults {
 		c.totalTax += propertyClassResult.PropertyTax
+	}
+
+	ctx.Update()
+}
+
+func (c *IndexPage) updateMaximumRateMultiplier(ctx app.Context) {
+	slog.InfoContext(ctx.Context, "IndexPage: updateMaximumRateMultiplier")
+}
+
+func (c *IndexPage) updateNonResidentialRateMultiplier(ctx app.Context) {
+	slog.InfoContext(ctx.Context, "IndexPage: updateNonResidentialRateMultiplier")
+}
+
+func (c *IndexPage) updateResidentialRate(ctx app.Context) {
+	slog.InfoContext(ctx.Context, "IndexPage: updateResidentialRate")
+}
+
+func (c *IndexPage) updateNonResidentialRate(ctx app.Context) {
+	slog.InfoContext(ctx.Context, "IndexPage: updateNonResidentialRate")
+}
+
+func (c *IndexPage) updateApartmentsAreResidential(ctx app.Context) {
+	slog.InfoContext(ctx.Context, "IndexPage: updateApartmentsAreResidential")
+
+	slog.InfoContext(ctx.Context, "IndexPage: apartments are residential", "apartmentsAreResidential", c.apartmentsAreResidential)
+
+	slog.InfoContext(ctx.Context, "IndexPage: rates", "residentialRate", c.residentialRate, "nonResidentialRateMultiplier", c.nonResidentialRateMultiplier)
+
+	apartmentTotalValue := 0.0
+	apartmentTotalTax := 0.0
+	for _, propertyClassResult := range c.propertyClassResults {
+		if propertyClassResult.PropertyClass == "APARTMENT" {
+			apartmentTotalValue += propertyClassResult.PropertyValue
+			apartmentTotalTax += propertyClassResult.PropertyTax
+		}
+	}
+
+	residentialTotalValue := 0.0
+	nonResidentialTotalValue := 0.0
+	totalValue := 0.0
+	for _, propertyClassResult := range c.propertyClassResults {
+		if slices.Contains([]string{"FARMLAND", "RESIDENTIAL"}, propertyClassResult.PropertyClass) {
+			residentialTotalValue += propertyClassResult.PropertyValue
+		} else {
+			nonResidentialTotalValue += propertyClassResult.PropertyValue
+		}
+		totalValue += propertyClassResult.PropertyValue
+	}
+	slog.InfoContext(ctx.Context, "IndexPage: original values", "apartmentTotalValue", printer.Sprintf("$%.0f", apartmentTotalValue), "residentialTotalValue", printer.Sprintf("$%.0f", residentialTotalValue), "nonResidentialTotalValue", printer.Sprintf("$%.0f", nonResidentialTotalValue))
+
+	//newApartmentTotalTax := 100.0 * apartmentTotalValue * c.residentialRate / 100.0 / 100.0
+	//apartmentTaxDeficit := apartmentTotalTax - newApartmentTotalTax
+
+	//residentialShareOfDeficit := residentialTotalValue / (residentialTotalValue + nonResidentialTotalValue) * apartmentTaxDeficit
+	//nonResidentialShareOfDeficit := nonResidentialTotalValue / (residentialTotalValue + nonResidentialTotalValue) * apartmentTaxDeficit
+
+	newResidentialTotalValue := residentialTotalValue + apartmentTotalValue
+	newNonResidentialTotalValue := nonResidentialTotalValue - apartmentTotalValue
+
+	slog.InfoContext(ctx.Context, "IndexPage: new values", "newResidentialTotalValue", printer.Sprintf("$%.0f", newResidentialTotalValue), "newNonResidentialTotalValue", printer.Sprintf("$%.0f", newNonResidentialTotalValue))
+
+	//
+	// Revenue = Residential Value * Residential Rate / 100 + Non-Residential Value * Non-Residential Rate / 100
+	// Revenue = Residential Value * Residential Rate / 100 + Non-Residential Value * Multiplier * Residential Rate / 100
+	// Revenue = Residential Rate / 100 * ( Residential Value + Non-Residential Value * Multiplier )
+	// Revenue * 100 = Residential Rate * ( Residential Value + Non-Residential Value * Multiplier )
+	// Revenue * 100 / Residential Rate = Residential Value + Non-Residential Value * Multiplier
+	// Revenue * 100 / Residential Rate - Residential Value = Non-Residential Value * Multiplier
+	// ( Revenue * 100 / Residential Rate - Residential Value ) / Non-Residential Value = Multiplier
+	//
+
+	newMultiplier := (totalValue - newResidentialTotalValue) / newNonResidentialTotalValue
+	slog.InfoContext(ctx.Context, "IndexPage: new multiplier", "newMultiplier", fmt.Sprintf("%.4f", newMultiplier))
+	slog.InfoContext(ctx.Context, "IndexPage: new rates", "residentialRate", fmt.Sprintf("%.4f", c.residentialRate), "nonResidentialRate", fmt.Sprintf("%.4f", c.residentialRate*newMultiplier))
+
+	newRevenue := c.residentialRate*newResidentialTotalValue + newMultiplier*c.residentialRate*newNonResidentialTotalValue
+	slog.InfoContext(ctx.Context, "IndexPage: revenue", "oldRevenue", printer.Sprintf("$%.0f", c.totalTax), "newRevenue", printer.Sprintf("$%.0f", newRevenue))
+
+	c.nonResidentialRateMultiplier = newMultiplier
+
+	ctx.Update()
+}
+
+func (c *IndexPage) calculateProposedPropertyClassResults(ctx app.Context) {
+	slog.InfoContext(ctx.Context, "IndexPage: calculateProposedPropertyClassResults")
+
+	if c.selectedSchoolDistrict == "" {
+		return
+	}
+
+	{
+		query := c.proposedQuery(`
+SELECT
+parcel.property_class,
+COUNT(*) AS property_count,
+SUM(parcelvalue2025.school_taxable) AS property_value,
+SUM(parceltax2025.total) AS property_tax,
+AVG(parcelvalue2025.school_taxable) AS average_value,
+AVG(parceltax2025.total) AS average_tax
+FROM parcel
+INNER JOIN parceltax2025 USING(parcelid)
+INNER JOIN parcelvalue2025 USING(parcelid)
+WHERE 1
+AND parcel.district = ?
+AND parcel.property_class NOT LIKE '%exempt%'
+GROUP BY parcel.property_class
+`)
+		var propertyClassResults []PropertyClassResult
+		err := c.db.Raw(query, c.selectedSchoolDistrict).
+			Scan(&propertyClassResults).
+			Error
+		if err != nil {
+			slog.ErrorContext(ctx.Context, "IndexPage: Error executing query", "err", err)
+			return
+		}
+
+		c.proposedPropertyClassResults = propertyClassResults
+	}
+
+	c.proposedTotalTax = 0
+	for _, propertyClassResult := range c.proposedPropertyClassResults {
+		c.proposedTotalTax += propertyClassResult.PropertyTax
 	}
 
 	ctx.Update()
