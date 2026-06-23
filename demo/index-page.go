@@ -15,6 +15,8 @@ import (
 	"github.com/ncruces/go-sqlite3/vfs/readervfs"
 	"github.com/tekkamanendless/csd-tax-parcel-analysis/dataset"
 	"github.com/tekkamanendless/csd-tax-parcel-analysis/internal/database"
+	"golang.org/x/text/language"
+	"golang.org/x/text/message"
 	"gorm.io/gorm"
 )
 
@@ -34,7 +36,10 @@ type IndexPage struct {
 	apartmentsAreResidential     bool
 
 	propertyClassResults []PropertyClassResult
+	totalTax             float64
 }
+
+var printer *message.Printer = message.NewPrinter(language.English)
 
 func (c *IndexPage) queryPrefix() string {
 	residentialPropertyClasses := []string{
@@ -234,6 +239,13 @@ func (c *IndexPage) Render() app.UI {
 				),
 			app.Div().
 				Body(
+					blazar.Input[string]().
+						Label("Total Tax").
+						Disabled(true).
+						Value(printer.Sprintf("$%.0f", c.totalTax)),
+				),
+			app.Div().
+				Body(
 					blazar.Table[PropertyClassResult]().
 						Rows(c.propertyClassResults).
 						Columns([]blazar.TableColumn[PropertyClassResult]{
@@ -246,43 +258,31 @@ func (c *IndexPage) Render() app.UI {
 							{
 								Name: "Property Count",
 								Value: func(row PropertyClassResult) any {
-									return row.PropertyCount
+									return printer.Sprintf("%d", row.PropertyCount)
 								},
 							},
 							{
 								Name: "Property Value",
 								Value: func(row PropertyClassResult) any {
-									return row.PropertyValue
+									return printer.Sprintf("$%.0f", row.PropertyValue)
 								},
 							},
 							{
 								Name: "Property Tax",
 								Value: func(row PropertyClassResult) any {
-									return row.PropertyTax
+									return printer.Sprintf("$%.0f", row.PropertyTax)
 								},
 							},
 							{
 								Name: "Average Value",
 								Value: func(row PropertyClassResult) any {
-									return row.AverageValue
+									return printer.Sprintf("$%.0f", row.AverageValue)
 								},
 							},
 							{
 								Name: "Average Tax",
 								Value: func(row PropertyClassResult) any {
-									return row.AverageTax
-								},
-							},
-							{
-								Name: "Median Value",
-								Value: func(row PropertyClassResult) any {
-									return row.MedianValue
-								},
-							},
-							{
-								Name: "Median Tax",
-								Value: func(row PropertyClassResult) any {
-									return row.MedianTax
+									return printer.Sprintf("$%.0f", row.AverageTax)
 								},
 							},
 						}),
@@ -340,6 +340,11 @@ GROUP BY parcel.property_class
 		}
 
 		c.propertyClassResults = propertyClassResults
+	}
+
+	c.totalTax = 0
+	for _, propertyClassResult := range c.propertyClassResults {
+		c.totalTax += propertyClassResult.PropertyTax
 	}
 
 	ctx.Update()
