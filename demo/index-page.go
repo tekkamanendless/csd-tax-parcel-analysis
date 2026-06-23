@@ -34,6 +34,7 @@ type IndexPage struct {
 
 	maximumRateMultiplier float64
 
+	loading                      bool
 	residentialRate              float64
 	nonResidentialRate           float64
 	nonResidentialRateMultiplier float64
@@ -41,6 +42,7 @@ type IndexPage struct {
 	propertyClassResults []PropertyClassResult
 	totalTax             float64
 
+	calculating                          bool
 	proposedResidentialRate              float64
 	proposedNonResidentialRate           float64
 	proposedNonResidentialRateMultiplier float64
@@ -351,6 +353,7 @@ func (c *IndexPage) Render() app.UI {
 								app.Legend().Text("Proposed"),
 								blazar.Input[float64]().
 									Label("Maximum Rate Multiplier").
+									Disabled(c.calculating).
 									Bind(&c.maximumRateMultiplier).
 									On("change", func(ctx app.Context, e app.Event) {
 										slog.InfoContext(ctx.Context, "IndexPage: Maximum Rate Multiplier changed", "maximumRateMultiplier", c.maximumRateMultiplier)
@@ -359,6 +362,7 @@ func (c *IndexPage) Render() app.UI {
 									}),
 								blazar.Input[float64]().
 									Label("Non-Residential Rate Multiplier").
+									Disabled(c.calculating).
 									Bind(&c.proposedNonResidentialRateMultiplier).
 									On("change", func(ctx app.Context, e app.Event) {
 										slog.InfoContext(ctx.Context, "IndexPage: Non-Residential Rate Multiplier changed", "proposedNonResidentialRateMultiplier", c.proposedNonResidentialRateMultiplier)
@@ -367,6 +371,7 @@ func (c *IndexPage) Render() app.UI {
 									}),
 								blazar.Input[float64]().
 									Label("Residential Rate").
+									Disabled(c.calculating).
 									Bind(&c.proposedResidentialRate).
 									On("change", func(ctx app.Context, e app.Event) {
 										slog.InfoContext(ctx.Context, "IndexPage: Residential Rate changed", "proposedResidentialRate", c.proposedResidentialRate)
@@ -375,6 +380,7 @@ func (c *IndexPage) Render() app.UI {
 									}),
 								blazar.Input[float64]().
 									Label("Non-Residential Rate").
+									Disabled(c.calculating).
 									Bind(&c.proposedNonResidentialRate).
 									On("change", func(ctx app.Context, e app.Event) {
 										slog.InfoContext(ctx.Context, "IndexPage: Non-Residential Rate changed", "proposedNonResidentialRate", c.proposedNonResidentialRate)
@@ -383,6 +389,7 @@ func (c *IndexPage) Render() app.UI {
 									}),
 								blazar.Input[bool]().
 									Label("Apartments are Residential").
+									Disabled(c.calculating).
 									Bind(&c.proposedApartmentsAreResidential).
 									On("change", func(ctx app.Context, e app.Event) {
 										slog.InfoContext(ctx.Context, "IndexPage: Apartments are Residential changed", "proposedApartmentsAreResidential", c.proposedApartmentsAreResidential)
@@ -392,6 +399,7 @@ func (c *IndexPage) Render() app.UI {
 							),
 						blazar.Button().
 							Label("Calculate").
+							Disabled(c.calculating).
 							On("click", func(ctx app.Context, e app.Event) {
 								slog.InfoContext(ctx.Context, "IndexPage: Calculate button clicked")
 
@@ -454,32 +462,37 @@ func (c *IndexPage) Render() app.UI {
 func (c *IndexPage) updateForNewSchoolDistrict(ctx app.Context) {
 	slog.InfoContext(ctx.Context, "IndexPage: updateForNewSchoolDistrict", "selectedSchoolDistrict", c.selectedSchoolDistrict)
 
+	c.loading = true
+
+	ctx.Update()
+
 	if c.selectedSchoolDistrict == "" {
 		return
 	}
 
-	{
-		query := c.query("SELECT * FROM districtrates WHERE district = ?")
-		var districtRate DistrictRate
-		err := c.db.Raw(query, c.selectedSchoolDistrict).
-			Scan(&districtRate).
-			Error
-		if err != nil {
-			slog.ErrorContext(ctx.Context, "Error executing query", "err", err)
-			return
+	ctx.Async(func() {
+		{
+			query := c.query("SELECT * FROM districtrates WHERE district = ?")
+			var districtRate DistrictRate
+			err := c.db.Raw(query, c.selectedSchoolDistrict).
+				Scan(&districtRate).
+				Error
+			if err != nil {
+				slog.ErrorContext(ctx.Context, "Error executing query", "err", err)
+				return
+			}
+
+			c.nonResidentialRateMultiplier = districtRate.NonResidentialRate2025 / districtRate.ResidentialRate2025
+			c.residentialRate = districtRate.ResidentialRate2025
+			c.nonResidentialRate = districtRate.NonResidentialRate2025
+
+			c.proposedNonResidentialRateMultiplier = c.nonResidentialRateMultiplier
+			c.proposedResidentialRate = c.residentialRate
+			c.proposedNonResidentialRate = c.nonResidentialRate
 		}
 
-		c.nonResidentialRateMultiplier = districtRate.NonResidentialRate2025 / districtRate.ResidentialRate2025
-		c.residentialRate = districtRate.ResidentialRate2025
-		c.nonResidentialRate = districtRate.NonResidentialRate2025
-
-		c.proposedNonResidentialRateMultiplier = c.nonResidentialRateMultiplier
-		c.proposedResidentialRate = c.residentialRate
-		c.proposedNonResidentialRate = c.nonResidentialRate
-	}
-
-	{
-		query := c.query(`
+		{
+			query := c.query(`
 SELECT
 parcel.property_class,
 COUNT(*) AS property_count,
@@ -495,24 +508,27 @@ AND parcel.district = ?
 AND parcel.property_class NOT LIKE '%exempt%'
 GROUP BY parcel.property_class
 `)
-		var propertyClassResults []PropertyClassResult
-		err := c.db.Raw(query, c.selectedSchoolDistrict).
-			Scan(&propertyClassResults).
-			Error
-		if err != nil {
-			slog.ErrorContext(ctx.Context, "IndexPage: Error executing query", "err", err)
-			return
+			var propertyClassResults []PropertyClassResult
+			err := c.db.Raw(query, c.selectedSchoolDistrict).
+				Scan(&propertyClassResults).
+				Error
+			if err != nil {
+				slog.ErrorContext(ctx.Context, "IndexPage: Error executing query", "err", err)
+				return
+			}
+
+			c.propertyClassResults = propertyClassResults
 		}
 
-		c.propertyClassResults = propertyClassResults
-	}
+		c.totalTax = 0
+		for _, propertyClassResult := range c.propertyClassResults {
+			c.totalTax += propertyClassResult.PropertyTax
+		}
 
-	c.totalTax = 0
-	for _, propertyClassResult := range c.propertyClassResults {
-		c.totalTax += propertyClassResult.PropertyTax
-	}
+		c.loading = false
 
-	ctx.Update()
+		ctx.Update()
+	})
 }
 
 func (c *IndexPage) updateMaximumRateMultiplier(ctx app.Context) {
@@ -604,12 +620,12 @@ func (c *IndexPage) refigureProposal(ctx app.Context) {
 	// Revenue * 100 = Residential Rate * ( Residential Value + Non-Residential Value * Multiplier )
 	// Revenue * 100 / ( Residential Value + Non-Residential Value * Multiplier ) = Residential Rate
 
-	newMultiplier := (c.totalTax*100.0/c.residentialRate - newResidentialTotalValue) / newNonResidentialTotalValue
+	newMultiplier := (c.totalTax*100.0/c.proposedResidentialRate - newResidentialTotalValue) / newNonResidentialTotalValue
 	slog.InfoContext(ctx.Context, "IndexPage: new multiplier", "newMultiplier", fmt.Sprintf("%.4f", newMultiplier))
-	slog.InfoContext(ctx.Context, "IndexPage: new rates", "residentialRate", fmt.Sprintf("%.4f", c.residentialRate), "nonResidentialRate", fmt.Sprintf("%.4f", c.residentialRate*newMultiplier))
+	slog.InfoContext(ctx.Context, "IndexPage: new rates", "residentialRate", fmt.Sprintf("%.4f", c.proposedResidentialRate), "nonResidentialRate", fmt.Sprintf("%.4f", c.proposedResidentialRate*newMultiplier))
 
 	if newMultiplier <= c.maximumRateMultiplier {
-		newRevenue := c.residentialRate/100.0*newResidentialTotalValue + newMultiplier*c.residentialRate/100.0*newNonResidentialTotalValue
+		newRevenue := c.proposedResidentialRate/100.0*newResidentialTotalValue + newMultiplier*c.proposedResidentialRate/100.0*newNonResidentialTotalValue
 		slog.InfoContext(ctx.Context, "IndexPage: revenue", "oldRevenue", printer.Sprintf("$%.0f", c.totalTax), "newRevenue", printer.Sprintf("$%.0f", newRevenue))
 
 		c.proposedNonResidentialRateMultiplier = newMultiplier
@@ -618,7 +634,7 @@ func (c *IndexPage) refigureProposal(ctx app.Context) {
 		c.proposedNonResidentialRateMultiplier = c.maximumRateMultiplier
 		c.proposedResidentialRate = c.totalTax * 100.0 / (newResidentialTotalValue + newNonResidentialTotalValue*c.maximumRateMultiplier)
 	}
-	c.proposedNonResidentialRate = c.proposedResidentialRate * c.maximumRateMultiplier
+	c.proposedNonResidentialRate = c.proposedResidentialRate * c.proposedNonResidentialRateMultiplier
 
 	ctx.Update()
 }
@@ -626,12 +642,19 @@ func (c *IndexPage) refigureProposal(ctx app.Context) {
 func (c *IndexPage) calculateProposedPropertyClassResults(ctx app.Context) {
 	slog.InfoContext(ctx.Context, "IndexPage: calculateProposedPropertyClassResults")
 
+	c.calculating = true
+	c.proposedPropertyClassResults = []PropertyClassResult{}
+
+	ctx.Update()
+
 	if c.selectedSchoolDistrict == "" {
 		return
 	}
 
-	{
-		query := c.proposedQuery(`
+	ctx.Async(func() {
+		for {
+			{
+				query := c.proposedQuery(`
 SELECT
 parcel.property_class,
 COUNT(*) AS property_count,
@@ -647,22 +670,35 @@ AND parcel.district = ?
 AND parcel.property_class NOT LIKE '%exempt%'
 GROUP BY parcel.property_class
 `)
-		var propertyClassResults []PropertyClassResult
-		err := c.db.Raw(query, c.selectedSchoolDistrict).
-			Scan(&propertyClassResults).
-			Error
-		if err != nil {
-			slog.ErrorContext(ctx.Context, "IndexPage: Error executing query", "err", err)
-			return
+				var propertyClassResults []PropertyClassResult
+				err := c.db.Raw(query, c.selectedSchoolDistrict).
+					Scan(&propertyClassResults).
+					Error
+				if err != nil {
+					slog.ErrorContext(ctx.Context, "IndexPage: calculateProposedPropertyClassResults: Error executing query", "err", err)
+					return
+				}
+
+				c.proposedPropertyClassResults = propertyClassResults
+			}
+
+			c.proposedTotalTax = 0
+			for _, propertyClassResult := range c.proposedPropertyClassResults {
+				c.proposedTotalTax += propertyClassResult.PropertyTax
+			}
+
+			slog.InfoContext(ctx.Context, "IndexPage: calculateProposedPropertyClassResults: proposed total tax", "proposedTotalTax", printer.Sprintf("$%.0f", c.proposedTotalTax), "totalTax", printer.Sprintf("$%.0f", c.totalTax))
+			if c.proposedTotalTax <= c.totalTax {
+				break
+			}
+
+			c.proposedResidentialRate *= 0.995
+			c.proposedNonResidentialRate = c.proposedResidentialRate * c.proposedNonResidentialRateMultiplier
+			slog.InfoContext(ctx.Context, "IndexPage: calculateProposedPropertyClassResults: setting new proposed residential rate", "proposedResidentialRate", fmt.Sprintf("%.4f", c.proposedResidentialRate))
 		}
 
-		c.proposedPropertyClassResults = propertyClassResults
-	}
+		c.calculating = false
 
-	c.proposedTotalTax = 0
-	for _, propertyClassResult := range c.proposedPropertyClassResults {
-		c.proposedTotalTax += propertyClassResult.PropertyTax
-	}
-
-	ctx.Update()
+		ctx.Update()
+	})
 }
