@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"iter"
 	"log/slog"
+	"slices"
 
 	gormextraclauseplugin "github.com/WinterYukky/gorm-extra-clause-plugin"
 	"github.com/ncruces/go-sqlite3"
@@ -22,15 +23,16 @@ func New(ctx context.Context, driverName string, connectionString string) (*gorm
 	driverDB, err := driver.Open(connectionString, func(conn *sqlite3.Conn) error {
 		err = conn.CreateAggregateFunction("median", 1, sqlite3.DETERMINISTIC|sqlite3.INNOCUOUS,
 			func(ctx *sqlite3.Context, seq iter.Seq[[]sqlite3.Value]) {
-				allValues := []sqlite3.Value{}
+				allValues := []float64{}
 				for arg := range seq {
-					allValues = append(allValues, *arg[0].Dup())
+					allValues = append(allValues, arg[0].Float())
 				}
 				if len(allValues) == 0 {
 					ctx.ResultNull()
 					return
 				}
-				ctx.ResultValue(allValues[len(allValues)/2])
+				slices.Sort(allValues)
+				ctx.ResultFloat(allValues[len(allValues)/2])
 			})
 		if err != nil {
 			return err
