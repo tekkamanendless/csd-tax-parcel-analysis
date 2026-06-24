@@ -374,6 +374,18 @@ func (c *IndexPage) Render() app.UI {
 										return printer.Sprintf("$%.0f", row.AverageTax)
 									},
 								},
+								{
+									Name: "Median Value",
+									Value: func(row PropertyClassResult) any {
+										return printer.Sprintf("$%.0f", row.MedianValue)
+									},
+								},
+								{
+									Name: "Median Tax",
+									Value: func(row PropertyClassResult) any {
+										return printer.Sprintf("$%.0f", row.MedianTax)
+									},
+								},
 							}),
 						app.FieldSet().
 							Body(
@@ -539,6 +551,18 @@ func (c *IndexPage) Render() app.UI {
 										return printer.Sprintf("$%.0f", row.AverageTax)
 									},
 								},
+								{
+									Name: "Median Value",
+									Value: func(row PropertyClassResult) any {
+										return printer.Sprintf("$%.0f", row.MedianValue)
+									},
+								},
+								{
+									Name: "Median Tax",
+									Value: func(row PropertyClassResult) any {
+										return printer.Sprintf("$%.0f", row.MedianTax)
+									},
+								},
 							}),
 					)
 			}),
@@ -587,7 +611,9 @@ COUNT(*) AS property_count,
 SUM(parcel.school_taxable) AS property_value,
 SUM(parceltax.total) AS property_tax,
 AVG(parcel.school_taxable) AS average_value,
-AVG(parceltax.total) AS average_tax
+AVG(parceltax.total) AS average_tax,
+MEDIAN(parcel.school_taxable) AS median_value,
+MEDIAN(parceltax.total) AS median_tax
 FROM parcel
 INNER JOIN parceltax USING(parcelid)
 WHERE 1
@@ -597,7 +623,7 @@ GROUP BY parcel.property_class
 `)
 			var propertyClassResults []PropertyClassResult
 			err := c.db.Raw(query, c.selectedSchoolDistrict).
-				Scan(&propertyClassResults).
+				Find(&propertyClassResults).
 				Error
 			if err != nil {
 				slog.ErrorContext(ctx.Context, "IndexPage: Error executing query", "err", err)
@@ -623,6 +649,10 @@ func (c *IndexPage) refigureProposal(ctx app.Context) {
 
 	slog.InfoContext(ctx.Context, "IndexPage: rates", "residentialRate", c.residentialRate, "nonResidentialRateMultiplier", c.nonResidentialRateMultiplier)
 
+	if c.proposedNonResidentialRateMultiplier > c.maximumRateMultiplier {
+		c.proposedNonResidentialRateMultiplier = c.maximumRateMultiplier
+	}
+
 	residentialTotalValue := 0.0
 	apartmentTotalValue := 0.0
 	nonResidentialTotalValue := 0.0
@@ -639,33 +669,23 @@ func (c *IndexPage) refigureProposal(ctx app.Context) {
 	slog.InfoContext(ctx.Context, "IndexPage: original values", "residentialTotalValue", printer.Sprintf("$%.0f", residentialTotalValue), "nonResidentialTotalValue", printer.Sprintf("$%.0f", nonResidentialTotalValue), "apartmentTotalValue", printer.Sprintf("$%.0f", apartmentTotalValue))
 	slog.InfoContext(ctx.Context, "IndexPage: total value", "totalValue", printer.Sprintf("$%.0f", totalValue))
 
-	var apartmentMultiplier float64
+	currentApartmentMultiplier := c.nonResidentialRateMultiplier
+	var proposedApartmentMultiplier float64
 	switch c.proposedApartmentClass {
 	case "residential":
-		apartmentMultiplier = 1.0
+		proposedApartmentMultiplier = 1.0
 	case "non-residential":
-		apartmentMultiplier = c.nonResidentialRateMultiplier
+		proposedApartmentMultiplier = c.proposedNonResidentialRateMultiplier
 	case "special":
-		apartmentMultiplier = c.proposedSpecialApartmentMultiplier
+		proposedApartmentMultiplier = c.proposedSpecialApartmentMultiplier
 	}
 
-	testRevenue := c.residentialRate/100.0*residentialTotalValue + c.nonResidentialRateMultiplier*c.residentialRate/100.0*nonResidentialTotalValue + apartmentMultiplier*c.residentialRate/100.0*apartmentTotalValue
-	slog.InfoContext(ctx.Context, "IndexPage: revenue", "oldRevenue", printer.Sprintf("$%.0f", c.totalTax), "testRevenue", printer.Sprintf("$%.0f", testRevenue))
+	testRevenue := c.residentialRate/100.0*residentialTotalValue + c.nonResidentialRateMultiplier*c.residentialRate/100.0*nonResidentialTotalValue + currentApartmentMultiplier*c.residentialRate/100.0*apartmentTotalValue
+	slog.InfoContext(ctx.Context, "IndexPage: revenue", "oldRevenue", printer.Sprintf("$%.0f", c.totalTax), "original testRevenue", printer.Sprintf("$%.0f", testRevenue))
 
 	newResidentialTotalValue := residentialTotalValue
 	newNonResidentialTotalValue := nonResidentialTotalValue
 	newApartmentTotalValue := apartmentTotalValue
-	switch c.proposedApartmentClass {
-	case "residential":
-		newResidentialTotalValue += apartmentTotalValue
-		newApartmentTotalValue = 0.0
-	case "non-residential":
-		newNonResidentialTotalValue -= apartmentTotalValue
-		newApartmentTotalValue = 0.0
-	case "special":
-		newResidentialTotalValue += apartmentTotalValue
-		newNonResidentialTotalValue -= apartmentTotalValue
-	}
 
 	slog.InfoContext(ctx.Context, "IndexPage: new values", "newResidentialTotalValue", printer.Sprintf("$%.0f", newResidentialTotalValue), "newNonResidentialTotalValue", printer.Sprintf("$%.0f", newNonResidentialTotalValue))
 
@@ -689,7 +709,7 @@ func (c *IndexPage) refigureProposal(ctx app.Context) {
 	// ( Revenue * 100 / Residential Rate ) - Residential Value - Apartment Value * Apartment Multiplier = Non-Residential Value * Multiplier
 	// ( ( Revenue * 100 / Residential Rate ) - Residential Value - Apartment Value * Apartment Multiplier ) / Non-Residential Value = Multiplier
 
-	newMultiplier := (c.totalTax*100.0/c.proposedResidentialRate - newResidentialTotalValue - newApartmentTotalValue*apartmentMultiplier) / newNonResidentialTotalValue
+	newMultiplier := (c.totalTax*100.0/c.proposedResidentialRate - newResidentialTotalValue - newApartmentTotalValue*proposedApartmentMultiplier) / newNonResidentialTotalValue
 	slog.InfoContext(ctx.Context, "IndexPage: new multiplier", "newMultiplier", fmt.Sprintf("%.4f", newMultiplier))
 	slog.InfoContext(ctx.Context, "IndexPage: new rates", "residentialRate", fmt.Sprintf("%.4f", c.proposedResidentialRate), "nonResidentialRate", fmt.Sprintf("%.4f", c.proposedResidentialRate*newMultiplier))
 
@@ -701,9 +721,12 @@ func (c *IndexPage) refigureProposal(ctx app.Context) {
 		c.proposedResidentialRate = c.residentialRate
 	} else {
 		c.proposedNonResidentialRateMultiplier = c.maximumRateMultiplier
-		c.proposedResidentialRate = c.totalTax * 100.0 / (newResidentialTotalValue + newNonResidentialTotalValue*c.maximumRateMultiplier + newApartmentTotalValue*apartmentMultiplier)
+		c.proposedResidentialRate = c.totalTax * 100.0 / (newResidentialTotalValue + newNonResidentialTotalValue*c.maximumRateMultiplier + newApartmentTotalValue*proposedApartmentMultiplier)
 	}
 	c.proposedNonResidentialRate = c.proposedResidentialRate * c.proposedNonResidentialRateMultiplier
+
+	testRevenue = c.proposedResidentialRate/100.0*residentialTotalValue + c.proposedNonResidentialRateMultiplier*c.proposedResidentialRate/100.0*nonResidentialTotalValue + proposedApartmentMultiplier*c.proposedResidentialRate/100.0*apartmentTotalValue
+	slog.InfoContext(ctx.Context, "IndexPage: revenue", "oldRevenue", printer.Sprintf("$%.0f", c.totalTax), "final testRevenue", printer.Sprintf("$%.0f", testRevenue))
 
 	ctx.Update()
 }
@@ -737,7 +760,9 @@ COUNT(*) AS property_count,
 SUM(parcel.school_taxable) AS property_value,
 SUM(parceltax.total) AS property_tax,
 AVG(parcel.school_taxable) AS average_value,
-AVG(parceltax.total) AS average_tax
+AVG(parceltax.total) AS average_tax,
+MEDIAN(parcel.school_taxable) AS median_value,
+MEDIAN(parceltax.total) AS median_tax
 FROM parcel
 INNER JOIN parceltax USING(parcelid)
 WHERE 1
@@ -747,7 +772,7 @@ GROUP BY parcel.property_class
 `)
 				var propertyClassResults []PropertyClassResult
 				err := c.db.Raw(query, c.selectedSchoolDistrict).
-					Scan(&propertyClassResults).
+					Find(&propertyClassResults).
 					Error
 				if err != nil {
 					slog.ErrorContext(ctx.Context, "IndexPage: calculateProposedPropertyClassResults: Error executing query", "err", err)
