@@ -30,7 +30,7 @@ func main() {
 
 	{
 		logLevel := "info"
-		if value, ok := os.LookupEnv("LOG_LEVEL"); ok {
+		if value := os.Getenv("LOG_LEVEL"); value != "" {
 			logLevel = value
 		}
 		slogConfig := slog.HandlerOptions{
@@ -73,6 +73,20 @@ func main() {
 		slog.SetDefault(slog.New(slog.NewMultiHandler(
 			handler,
 		)))
+
+		slog.InfoContext(ctx, "Logging level", "level", slogConfig.Level)
+	}
+	if slog.Default().Enabled(ctx, slog.LevelDebug) {
+		slog.InfoContext(ctx, "Logging level includes debug")
+	}
+	if slog.Default().Enabled(ctx, slog.LevelInfo) {
+		slog.InfoContext(ctx, "Logging level includes info")
+	}
+	if slog.Default().Enabled(ctx, slog.LevelWarn) {
+		slog.InfoContext(ctx, "Logging level includes warn")
+	}
+	if slog.Default().Enabled(ctx, slog.LevelError) {
+		slog.InfoContext(ctx, "Logging level includes error")
 	}
 
 	disableServiceWorker := true

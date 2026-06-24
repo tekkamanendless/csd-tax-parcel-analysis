@@ -60,7 +60,10 @@ func New(ctx context.Context, driverName string, connectionString string) (*gorm
 
 	// Only turn on database debugging if we're in debug mode.
 	if slog.Default().Enabled(ctx, slog.LevelDebug) {
+		slog.InfoContext(ctx, "Database: Debug mode enabled")
 		db = db.Debug()
+	} else {
+		slog.InfoContext(ctx, "Database: Debug mode disabled")
 	}
 
 	return db, nil
