@@ -398,30 +398,15 @@ func (c *IndexPage) Render() app.UI {
 								blazar.Input[float64]().
 									Label("Non-Residential Rate Multiplier").
 									Disabled(true).
-									Value(c.nonResidentialRateMultiplier).
-									On("change", func(ctx app.Context, e app.Event) {
-										slog.InfoContext(ctx.Context, "IndexPage: Non-Residential Rate Multiplier changed", "proposedNonResidentialRateMultiplier", c.proposedNonResidentialRateMultiplier)
-
-										c.refigureProposal(ctx)
-									}),
+									Value(c.nonResidentialRateMultiplier),
 								blazar.Input[float64]().
 									Label("Residential Rate").
 									Disabled(true).
-									Value(c.residentialRate).
-									On("change", func(ctx app.Context, e app.Event) {
-										slog.InfoContext(ctx.Context, "IndexPage: Residential Rate changed", "proposedResidentialRate", c.proposedResidentialRate)
-
-										c.refigureProposal(ctx)
-									}),
+									Value(c.residentialRate),
 								blazar.Input[float64]().
 									Label("Non-Residential Rate").
 									Disabled(true).
-									Value(c.nonResidentialRate).
-									On("change", func(ctx app.Context, e app.Event) {
-										slog.InfoContext(ctx.Context, "IndexPage: Non-Residential Rate changed", "proposedNonResidentialRate", c.proposedNonResidentialRate)
-
-										c.refigureProposal(ctx)
-									}),
+									Value(c.nonResidentialRate),
 							),
 						app.FieldSet().
 							Body(
@@ -429,39 +414,19 @@ func (c *IndexPage) Render() app.UI {
 								blazar.Input[float64]().
 									Label("Maximum Rate Multiplier").
 									Disabled(c.calculating).
-									Bind(&c.maximumRateMultiplier).
-									On("change", func(ctx app.Context, e app.Event) {
-										slog.InfoContext(ctx.Context, "IndexPage: Maximum Rate Multiplier changed", "maximumRateMultiplier", c.maximumRateMultiplier)
-
-										c.refigureProposal(ctx)
-									}),
+									Bind(&c.maximumRateMultiplier),
 								blazar.Input[float64]().
 									Label("Non-Residential Rate Multiplier").
 									Disabled(c.calculating).
-									Bind(&c.proposedNonResidentialRateMultiplier).
-									On("change", func(ctx app.Context, e app.Event) {
-										slog.InfoContext(ctx.Context, "IndexPage: Non-Residential Rate Multiplier changed", "proposedNonResidentialRateMultiplier", c.proposedNonResidentialRateMultiplier)
-
-										c.refigureProposal(ctx)
-									}),
+									Bind(&c.proposedNonResidentialRateMultiplier),
 								blazar.Input[float64]().
 									Label("Residential Rate").
 									Disabled(c.calculating).
-									Bind(&c.proposedResidentialRate).
-									On("change", func(ctx app.Context, e app.Event) {
-										slog.InfoContext(ctx.Context, "IndexPage: Residential Rate changed", "proposedResidentialRate", c.proposedResidentialRate)
-
-										c.refigureProposal(ctx)
-									}),
+									Bind(&c.proposedResidentialRate),
 								blazar.Input[float64]().
 									Label("Non-Residential Rate").
 									Disabled(c.calculating).
-									Bind(&c.proposedNonResidentialRate).
-									On("change", func(ctx app.Context, e app.Event) {
-										slog.InfoContext(ctx.Context, "IndexPage: Non-Residential Rate changed", "proposedNonResidentialRate", c.proposedNonResidentialRate)
-
-										c.refigureProposal(ctx)
-									}),
+									Bind(&c.proposedNonResidentialRate),
 								blazar.Select().
 									Label("Apartments Are Classifed As").
 									//Disabled(c.calculating).
@@ -480,21 +445,11 @@ func (c *IndexPage) Render() app.UI {
 											Label: "Special New Thing",
 											Value: "special",
 										},
-									).
-									On("change", func(ctx app.Context, e app.Event) {
-										slog.InfoContext(ctx.Context, "IndexPage: Apartments Are Classified As changed", "proposedApartmentClass", c.proposedApartmentClass)
-
-										c.refigureProposal(ctx)
-									}),
+									),
 								blazar.Input[float64]().
 									Label("Special Apartment Multiplier").
 									Disabled(c.calculating).
-									Bind(&c.proposedSpecialApartmentMultiplier).
-									On("change", func(ctx app.Context, e app.Event) {
-										slog.InfoContext(ctx.Context, "IndexPage: Special Apartment Multiplier changed", "proposedSpecialApartmentRate", c.proposedSpecialApartmentMultiplier)
-
-										c.refigureProposal(ctx)
-									}),
+									Bind(&c.proposedSpecialApartmentMultiplier),
 							),
 						blazar.Button().
 							Label("Calculate").
@@ -502,6 +457,7 @@ func (c *IndexPage) Render() app.UI {
 							On("click", func(ctx app.Context, e app.Event) {
 								slog.InfoContext(ctx.Context, "IndexPage: Calculate button clicked")
 
+								c.refigureProposal(ctx)
 								c.calculateProposedPropertyClassResults(ctx)
 							}),
 					)
