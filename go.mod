@@ -4,7 +4,7 @@ go 1.26.2
 
 require (
 	github.com/WinterYukky/gorm-extra-clause-plugin v0.4.0
-	github.com/go-app-blazar/blazar v0.1.13
+	github.com/go-app-blazar/blazar v0.1.14
 	github.com/go-app-blazar/router v0.1.0
 	github.com/joho/godotenv v1.5.1
 	github.com/lmittmann/tint v1.1.3
@@ -13,7 +13,7 @@ require (
 	github.com/ncruces/go-sqlite3 v0.34.0
 	github.com/ncruces/go-sqlite3/gormlite v0.34.0
 	github.com/tekkamanendless/gormslog v0.1.1
-	golang.org/x/text v0.37.0
+	golang.org/x/text v0.38.0
 	gorm.io/gorm v1.31.1
 )
 
