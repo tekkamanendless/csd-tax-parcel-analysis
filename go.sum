@@ -6,8 +6,8 @@ github.com/WinterYukky/gorm-extra-clause-plugin v0.4.0 h1:e4gYsN9tNzoBMYKYBaGwwZ
 github.com/WinterYukky/gorm-extra-clause-plugin v0.4.0/go.mod h1:jNWq8AymgsVev9Kq6mke0b3o3yzY6bTSwjMDfTvZPPM=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/go-app-blazar/blazar v0.1.11 h1:fJbrlqihZ2jTO9ldaP7QdDnjyG9H71x+i1+yoYgXF24=
-github.com/go-app-blazar/blazar v0.1.11/go.mod h1:BQ6oQU7y7I3mFQd+dn8CkKqY6dN8fhkyFWYZ/64kUKI=
+github.com/go-app-blazar/blazar v0.1.13 h1:eugaTSeeaeoZgkT0mqPooNISIBFXSZ9WX3NALTi7kRA=
+github.com/go-app-blazar/blazar v0.1.13/go.mod h1:BQ6oQU7y7I3mFQd+dn8CkKqY6dN8fhkyFWYZ/64kUKI=
 github.com/go-app-blazar/router v0.1.0 h1:2uRiN5HV9qTaoyw8zOtmPtU3BqnL6Tnrwh8a4csChxM=
 github.com/go-app-blazar/router v0.1.0/go.mod h1:yY7DcUn3ToFdcNAGeyx0v8LjikiTu3WJ1XkQiEIlJRY=
 github.com/go-sql-driver/mysql v1.8.1 h1:LedoTUt/eveggdHS9qUFC1EFSa8bU2+1pZjSRpvNJ1Y=

@@ -11,7 +11,6 @@ import (
 
 	"github.com/go-app-blazar/blazar/blazar"
 	"github.com/go-app-blazar/blazar/blazarapp"
-	"github.com/go-app-blazar/blazar/fontawesome"
 	"github.com/go-app-blazar/router"
 	"github.com/joho/godotenv"
 	"github.com/lmittmann/tint"
@@ -148,13 +147,7 @@ func main() {
 		Description: "New Castle County School Tax Calculator",
 		Title:       "New Castle County School Tax Calculator",
 	})
-	blazarApp.AddPlugin(fontawesome.NewPlugin(fontawesome.Config{
-		Location: "/web/fontawesome/",
-		Minify:   false,
-	}))
-	blazarApp.AddPlugin(blazar.NewPlugin(blazar.Config{
-		Location: "/web/blazar/",
-	}))
+	blazarApp.AddPlugin(blazarapp.DefaultPlugins()...)
 
 	slog.InfoContext(ctx, "Disable service worker?", "disableServiceWorker", disableServiceWorker)
 	if disableServiceWorker {

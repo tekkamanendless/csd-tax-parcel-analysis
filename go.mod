@@ -4,7 +4,7 @@ go 1.26.2
 
 require (
 	github.com/WinterYukky/gorm-extra-clause-plugin v0.4.0
-	github.com/go-app-blazar/blazar v0.1.11
+	github.com/go-app-blazar/blazar v0.1.13
 	github.com/go-app-blazar/router v0.1.0
 	github.com/joho/godotenv v1.5.1
 	github.com/lmittmann/tint v1.1.3

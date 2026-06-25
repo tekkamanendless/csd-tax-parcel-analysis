@@ -327,9 +327,13 @@ func (c *IndexPage) Render() app.UI {
 						On("change", func(ctx app.Context, e app.Event) {
 							slog.InfoContext(ctx.Context, "IndexPage: School district changed", "selectedSchoolDistrict", c.selectedSchoolDistrict)
 
-							ctx.Async(func() {
-								c.updateForNewSchoolDistrict(ctx)
+							ctx.Defer(func(ctx app.Context) {
+								ctx.Async(func() {
+									c.updateForNewSchoolDistrict(ctx)
+								})
 							})
+
+							slog.InfoContext(ctx.Context, "IndexPage: School district changed 2", "selectedSchoolDistrict", c.selectedSchoolDistrict)
 						}),
 				),
 			app.If(len(c.propertyClassResults2025) > 0, func() app.UI {
@@ -457,8 +461,10 @@ func (c *IndexPage) Render() app.UI {
 							On("click", func(ctx app.Context, e app.Event) {
 								slog.InfoContext(ctx.Context, "IndexPage: Calculate button clicked")
 
-								c.refigureProposal(ctx)
-								c.calculateProposedPropertyClassResults(ctx)
+								ctx.Defer(func(ctx app.Context) {
+									c.refigureProposal(ctx)
+									c.calculateProposedPropertyClassResults(ctx)
+								})
 							}),
 					)
 			}),
@@ -529,16 +535,49 @@ func (c *IndexPage) Render() app.UI {
 func (c *IndexPage) updateForNewSchoolDistrict(ctx app.Context) {
 	slog.InfoContext(ctx.Context, "IndexPage: updateForNewSchoolDistrict", "selectedSchoolDistrict", c.selectedSchoolDistrict)
 
-	c.loading = true
-
-	ctx.Update()
-
 	if c.selectedSchoolDistrict == "" {
 		return
 	}
 
+	ctx.Dispatch(func(ctx app.Context) {
+		c.loading = true
+	})
+
 	ctx.Async(func() {
-		{
+		query := c.query(`
+SELECT
+parcel.property_class,
+COUNT(*) AS property_count,
+SUM(parcel.school_taxable) AS property_value,
+SUM(parceltax.total) AS property_tax,
+AVG(parcel.school_taxable) AS average_value,
+AVG(parceltax.total) AS average_tax,
+MEDIAN(parcel.school_taxable) AS median_value,
+MEDIAN(parceltax.total) AS median_tax
+FROM parcel
+INNER JOIN parceltax USING(parcelid)
+WHERE 1
+AND parcel.district = ?
+AND parcel.property_class NOT LIKE '%exempt%'
+GROUP BY parcel.property_class
+`)
+		var propertyClassResults []PropertyClassResult
+		err := c.db.Raw(query, c.selectedSchoolDistrict).
+			Find(&propertyClassResults).
+			Error
+		if err != nil {
+			slog.ErrorContext(ctx.Context, "IndexPage: Error executing query", "err", err)
+			return
+		}
+
+		ctx.Dispatch(func(ctx app.Context) {
+			c.propertyClassResults2025 = propertyClassResults
+
+			c.totalTax = 0
+			for _, propertyClassResult := range c.propertyClassResults2025 {
+				c.totalTax += propertyClassResult.PropertyTax
+			}
+
 			var districtRate TaxRate
 			for _, testRate := range c.taxRates {
 				if testRate.SchoolDistrict == c.selectedSchoolDistrict {
@@ -558,46 +597,9 @@ func (c *IndexPage) updateForNewSchoolDistrict(ctx app.Context) {
 			c.proposedNonResidentialRateMultiplier = c.nonResidentialRateMultiplier
 			c.proposedResidentialRate = c.residentialRate
 			c.proposedNonResidentialRate = c.nonResidentialRate
-		}
 
-		{
-			query := c.query(`
-SELECT
-parcel.property_class,
-COUNT(*) AS property_count,
-SUM(parcel.school_taxable) AS property_value,
-SUM(parceltax.total) AS property_tax,
-AVG(parcel.school_taxable) AS average_value,
-AVG(parceltax.total) AS average_tax,
-MEDIAN(parcel.school_taxable) AS median_value,
-MEDIAN(parceltax.total) AS median_tax
-FROM parcel
-INNER JOIN parceltax USING(parcelid)
-WHERE 1
-AND parcel.district = ?
-AND parcel.property_class NOT LIKE '%exempt%'
-GROUP BY parcel.property_class
-`)
-			var propertyClassResults []PropertyClassResult
-			err := c.db.Raw(query, c.selectedSchoolDistrict).
-				Find(&propertyClassResults).
-				Error
-			if err != nil {
-				slog.ErrorContext(ctx.Context, "IndexPage: Error executing query", "err", err)
-				return
-			}
-
-			c.propertyClassResults2025 = propertyClassResults
-		}
-
-		c.totalTax = 0
-		for _, propertyClassResult := range c.propertyClassResults2025 {
-			c.totalTax += propertyClassResult.PropertyTax
-		}
-
-		c.loading = false
-
-		ctx.Update()
+			c.loading = false
+		})
 	})
 }
 
@@ -716,18 +718,17 @@ func (c *IndexPage) refigureProposal(ctx app.Context) {
 func (c *IndexPage) calculateProposedPropertyClassResults(ctx app.Context) {
 	slog.InfoContext(ctx.Context, "IndexPage: calculateProposedPropertyClassResults")
 
-	c.calculating = true
-	c.proposedPropertyClassResults = []PropertyClassResult{}
-
-	ctx.Update()
-
 	if c.selectedSchoolDistrict == "" {
 		return
 	}
 
+	ctx.Dispatch(func(ctx app.Context) {
+		c.calculating = true
+		c.proposedPropertyClassResults = []PropertyClassResult{}
+	})
+
 	ctx.Async(func() {
-		{
-			query := c.proposedQuery(`
+		query := c.proposedQuery(`
 SELECT
 parcel.property_class,
 COUNT(*) AS property_count,
@@ -744,25 +745,24 @@ AND parcel.district = ?
 AND parcel.property_class NOT LIKE '%exempt%'
 GROUP BY parcel.property_class
 `)
-			var propertyClassResults []PropertyClassResult
-			err := c.db.Raw(query, c.selectedSchoolDistrict).
-				Find(&propertyClassResults).
-				Error
-			if err != nil {
-				slog.ErrorContext(ctx.Context, "IndexPage: calculateProposedPropertyClassResults: Error executing query", "err", err)
-				return
+		var propertyClassResults []PropertyClassResult
+		err := c.db.Raw(query, c.selectedSchoolDistrict).
+			Find(&propertyClassResults).
+			Error
+		if err != nil {
+			slog.ErrorContext(ctx.Context, "IndexPage: calculateProposedPropertyClassResults: Error executing query", "err", err)
+			return
+		}
+
+		ctx.Dispatch(func(ctx app.Context) {
+			c.proposedPropertyClassResults = propertyClassResults
+
+			c.proposedTotalTax = 0
+			for _, propertyClassResult := range c.proposedPropertyClassResults {
+				c.proposedTotalTax += propertyClassResult.PropertyTax
 			}
 
-			c.proposedPropertyClassResults = propertyClassResults
-		}
-
-		c.proposedTotalTax = 0
-		for _, propertyClassResult := range c.proposedPropertyClassResults {
-			c.proposedTotalTax += propertyClassResult.PropertyTax
-		}
-
-		c.calculating = false
-
-		ctx.Update()
+			c.calculating = false
+		})
 	})
 }
