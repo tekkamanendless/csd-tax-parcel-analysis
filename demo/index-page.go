@@ -512,44 +512,69 @@ func (c *IndexPage) Render() app.UI {
 								{
 									Name: "Property Count",
 									Value: func(row PropertyClassResult) any {
-										return printer.Sprintf("%d", row.PropertyCount)
+										return row.PropertyCount
 									},
+									Type: blazar.TableColumnTypeNumber,
 								},
 								{
 									Name: "Property Value",
 									Value: func(row PropertyClassResult) any {
-										return printer.Sprintf("$%.0f", row.PropertyValue)
+										return row.PropertyValue
 									},
+									Format: func(value any) any {
+										return fmt.Sprintf("$%v", blazar.TableColumnFormatNumber(value))
+									},
+									Type: blazar.TableColumnTypeNumber,
 								},
 								{
 									Name: "Property Tax",
 									Value: func(row PropertyClassResult) any {
-										return printer.Sprintf("$%.0f", row.PropertyTax)
+										return row.PropertyTax
 									},
+									Format: func(value any) any {
+										return fmt.Sprintf("$%v", blazar.TableColumnFormatNumber(value))
+									},
+									Type: blazar.TableColumnTypeNumber,
 								},
 								{
 									Name: "Average Value",
 									Value: func(row PropertyClassResult) any {
-										return printer.Sprintf("$%.0f", row.AverageValue)
+										return row.AverageValue
 									},
+									Format: func(value any) any {
+										return fmt.Sprintf("$%v", blazar.TableColumnFormatNumber(value))
+									},
+									Type: blazar.TableColumnTypeNumber,
 								},
 								{
 									Name: "Average Tax",
 									Value: func(row PropertyClassResult) any {
-										return printer.Sprintf("$%.0f", row.AverageTax)
+										return row.AverageTax
 									},
+									Format: func(value any) any {
+										return fmt.Sprintf("$%v", blazar.TableColumnFormatNumber(value))
+									},
+									Type: blazar.TableColumnTypeNumber,
 								},
 								{
 									Name: "Median Value",
 									Value: func(row PropertyClassResult) any {
-										return printer.Sprintf("$%.0f", row.MedianValue)
+										return row.MedianValue
 									},
+									Format: func(value any) any {
+										return fmt.Sprintf("$%v", blazar.TableColumnFormatNumber(value))
+									},
+									Type: blazar.TableColumnTypeNumber,
 								},
 								{
 									Name: "Median Tax",
 									Value: func(row PropertyClassResult) any {
-										return printer.Sprintf("$%.0f", row.MedianTax)
+										return row.MedianTax
 									},
+									Format: func(value any) any {
+										return fmt.Sprintf("$%v", blazar.TableColumnFormatNumber(value))
+									},
+									Type: blazar.TableColumnTypeNumber,
 								},
 							}),
 					)
