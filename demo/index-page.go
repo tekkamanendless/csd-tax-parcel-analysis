@@ -17,6 +17,7 @@ import (
 	"github.com/ncruces/go-sqlite3/vfs/memdb"
 	"github.com/tekkamanendless/csd-tax-parcel-analysis/dataset"
 	"github.com/tekkamanendless/csd-tax-parcel-analysis/internal/database"
+	"github.com/tekkamanendless/csd-tax-parcel-analysis/simplechart"
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
 	"gorm.io/gorm"
@@ -417,6 +418,36 @@ func (c *IndexPage) Render() app.UI {
 									Type: blazar.TableColumnTypeNumber,
 								},
 							}),
+						simplechart.SimpleChart().
+							Items(func() []simplechart.SimpleChartItem {
+								var items []simplechart.SimpleChartItem
+								totalValue := 0.0
+								for _, propertyClassResult := range c.propertyClassResults2025 {
+									totalValue += propertyClassResult.PropertyValue
+								}
+								for _, propertyClassResult := range c.propertyClassResults2025 {
+									items = append(items, simplechart.SimpleChartItem{
+										Label: propertyClassResult.PropertyClass,
+										Value: 100.0 * propertyClassResult.PropertyValue / totalValue,
+									})
+								}
+								return items
+							}()),
+						simplechart.SimpleChart().
+							Items(func() []simplechart.SimpleChartItem {
+								var items []simplechart.SimpleChartItem
+								totalValue := 0.0
+								for _, propertyClassResult := range c.propertyClassResults2025 {
+									totalValue += propertyClassResult.PropertyTax
+								}
+								for _, propertyClassResult := range c.propertyClassResults2025 {
+									items = append(items, simplechart.SimpleChartItem{
+										Label: propertyClassResult.PropertyClass,
+										Value: 100.0 * propertyClassResult.PropertyTax / totalValue,
+									})
+								}
+								return items
+							}()),
 						app.FieldSet().
 							Body(
 								app.Legend().Text("Current"),
@@ -577,6 +608,36 @@ func (c *IndexPage) Render() app.UI {
 									Type: blazar.TableColumnTypeNumber,
 								},
 							}),
+						simplechart.SimpleChart().
+							Items(func() []simplechart.SimpleChartItem {
+								var items []simplechart.SimpleChartItem
+								totalValue := 0.0
+								for _, propertyClassResult := range c.proposedPropertyClassResults {
+									totalValue += propertyClassResult.PropertyValue
+								}
+								for _, propertyClassResult := range c.proposedPropertyClassResults {
+									items = append(items, simplechart.SimpleChartItem{
+										Label: propertyClassResult.PropertyClass,
+										Value: 100.0 * propertyClassResult.PropertyValue / totalValue,
+									})
+								}
+								return items
+							}()),
+						simplechart.SimpleChart().
+							Items(func() []simplechart.SimpleChartItem {
+								var items []simplechart.SimpleChartItem
+								totalValue := 0.0
+								for _, propertyClassResult := range c.proposedPropertyClassResults {
+									totalValue += propertyClassResult.PropertyTax
+								}
+								for _, propertyClassResult := range c.proposedPropertyClassResults {
+									items = append(items, simplechart.SimpleChartItem{
+										Label: propertyClassResult.PropertyClass,
+										Value: 100.0 * propertyClassResult.PropertyTax / totalValue,
+									})
+								}
+								return items
+							}()),
 					)
 			}),
 		)

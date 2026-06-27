@@ -1,0 +1,252 @@
+/* CHART */
+
+/* Common to all styles of chart */
+
+.simplechart__chart {
+    /* Chart elements sizes */
+    
+    /* Currently handling up to 9 pie slices / bars, but could be updated for more */
+  
+    --percentage-100-1: var(--data-percentage-1);
+    --percentage-100-2: var(--data-percentage-2);
+    --percentage-100-3: var(--data-percentage-3);
+    --percentage-100-4: var(--data-percentage-4);
+    --percentage-100-5: var(--data-percentage-5);
+    --percentage-100-6: var(--data-percentage-6);
+    --percentage-100-7: var(--data-percentage-7);
+    --percentage-100-8: var(--data-percentage-8);
+    --percentage-100-9: var(--data-percentage-9);
+    /*...*/
+    
+    @supports (z-index: attr(data-percentage-1 type(<number>))) {
+  
+      --percentage-100-1: attr(data-percentage-1 type(<number>)); 
+      --percentage-100-2: attr(data-percentage-2 type(<number>)); 
+      --percentage-100-3: attr(data-percentage-3 type(<number>)); 
+      --percentage-100-4: attr(data-percentage-4 type(<number>)); 
+      --percentage-100-5: attr(data-percentage-5 type(<number>)); 
+      --percentage-100-6: attr(data-percentage-6 type(<number>)); 
+      --percentage-100-7: attr(data-percentage-7 type(<number>)); 
+      --percentage-100-8: attr(data-percentage-8 type(<number>)); 
+      --percentage-100-9: attr(data-percentage-9 type(<number>)); 
+      /*...*/
+    }
+    
+    :nth-child(1) { --percentage-100: var(--percentage-100-1) }
+    :nth-child(2) { --percentage-100: var(--percentage-100-2) }
+    :nth-child(3) { --percentage-100: var(--percentage-100-3) }
+    :nth-child(4) { --percentage-100: var(--percentage-100-4) }
+    :nth-child(5) { --percentage-100: var(--percentage-100-5) }
+    :nth-child(6) { --percentage-100: var(--percentage-100-6) }
+    :nth-child(7) { --percentage-100: var(--percentage-100-7) }
+    :nth-child(8) { --percentage-100: var(--percentage-100-8) }
+    :nth-child(9) { --percentage-100: var(--percentage-100-9) }
+    /*...*/ 
+}
+  
+/* Colors */
+  
+.simplechart__chart {
+    /* Could be replace by use of sibling-count() in the future */ 
+    &:has(:nth-child(1)) { --n: 1 }
+    &:has(:nth-child(2)) { --n: 2 }
+    &:has(:nth-child(3)) { --n: 3 }
+    &:has(:nth-child(4)) { --n: 4 }
+    &:has(:nth-child(5)) { --n: 5 }
+    &:has(:nth-child(6)) { --n: 6 }
+    &:has(:nth-child(7)) { --n: 7 }
+    &:has(:nth-child(8)) { --n: 8 }
+    &:has(:nth-child(9)) { --n: 9 }
+    /*...*/
+  
+    /* Could be simplified by use of sibling-index() in the future 
+     * --bg-color: var(--color, hsl(calc(360deg * sibling-index() / sibling-count()) 90% 40%)); */ 
+    
+    > * { 
+      @supports (color: attr(data-color type(<color>))) {
+        --color: attr(data-color type(<color>));
+      }
+      --bg-color: currentColor; 
+    }
+  
+    --color-1: var(--data-color-1, red);
+    --color-2: var(--data-color-2, red);
+    --color-3: var(--data-color-3, red);
+    --color-4: var(--data-color-4, red);
+    --color-5: var(--data-color-5, red);
+    --color-6: var(--data-color-6, red);
+    --color-7: var(--data-color-7, red);
+    --color-8: var(--data-color-8, red);
+    --color-9: var(--data-color-9, red);
+    
+    @supports (color: attr(data-color-1 type(<color>))) {
+  
+      --color-1: attr(data-color-1 type(<color>));
+      --color-2: attr(data-color-2 type(<color>));
+      --color-3: attr(data-color-3 type(<color>));
+      --color-4: attr(data-color-4 type(<color>));
+      --color-5: attr(data-color-5 type(<color>));
+      --color-6: attr(data-color-6 type(<color>));
+      --color-7: attr(data-color-7 type(<color>));
+      --color-8: attr(data-color-8 type(<color>));
+      --color-9: attr(data-color-9 type(<color>));
+    }
+    
+    :nth-child(1) { --bg-color: var(--color, var(--color-1, hsl(calc(360deg * 1 / var(--n)) 90% 40%))) }
+    :nth-child(2) { --bg-color: var(--color, var(--color-2, hsl(calc(360deg * 2 / var(--n)) 90% 40%))) }
+    :nth-child(3) { --bg-color: var(--color, var(--color-3, hsl(calc(360deg * 3 / var(--n)) 90% 40%))) }
+    :nth-child(4) { --bg-color: var(--color, var(--color-4, hsl(calc(360deg * 4 / var(--n)) 90% 40%))) }
+    :nth-child(5) { --bg-color: var(--color, var(--color-5, hsl(calc(360deg * 5 / var(--n)) 90% 40%))) }
+    :nth-child(6) { --bg-color: var(--color, var(--color-6, hsl(calc(360deg * 6 / var(--n)) 90% 40%))) }
+    :nth-child(7) { --bg-color: var(--color, var(--color-7, hsl(calc(360deg * 7 / var(--n)) 90% 40%))) }
+    :nth-child(8) { --bg-color: var(--color, var(--color-8, hsl(calc(360deg * 8 / var(--n)) 90% 40%))) }
+    :nth-child(9) { --bg-color: var(--color, var(--color-9, hsl(calc(360deg * 9 / var(--n)) 90% 40%))) }
+    /*...*/
+}
+  
+/* Pie chart */
+
+.simplechart__chart:is(.pie) {
+
+  display: grid;
+}
+  
+.simplechart__chart:is(.pie) {
+
+  --accum-1: 0;                                              :nth-child(1) { --accum: var(--accum-1); }
+  --accum-2: calc(var(--accum-1) + var(--percentage-100-1)); :nth-child(2) { --accum: var(--accum-2); }
+  --accum-3: calc(var(--accum-2) + var(--percentage-100-2)); :nth-child(3) { --accum: var(--accum-3); }
+  --accum-4: calc(var(--accum-3) + var(--percentage-100-3)); :nth-child(4) { --accum: var(--accum-4); }
+  --accum-5: calc(var(--accum-4) + var(--percentage-100-4)); :nth-child(5) { --accum: var(--accum-5); }
+  --accum-6: calc(var(--accum-5) + var(--percentage-100-5)); :nth-child(6) { --accum: var(--accum-6); }
+  --accum-7: calc(var(--accum-6) + var(--percentage-100-6)); :nth-child(7) { --accum: var(--accum-7); }
+  --accum-8: calc(var(--accum-7) + var(--percentage-100-7)); :nth-child(8) { --accum: var(--accum-8); }
+  --accum-9: calc(var(--accum-8) + var(--percentage-100-8)); :nth-child(9) { --accum: var(--accum-9); }
+  /*...*/
+  
+  /* Could be simplified by the use of @function in the future ? */
+}
+  
+/* With sibling-index() and sibling-count(), could be replaced by that : */
+/*.pie.simplechart__chart li {
+
+  --user-color: attr(data-color type(<color>));
+  --bg-color:   var(--user-color, hsl(calc(360deg * sibling-index() / sibling-count()) 90% 40%));
+}*/
+
+.simplechart__chart:is(.pie) {
+  
+    --radius:     20vmin;
+    --knife-cut:  2px;
+    --knife-cut:  0px;
+  
+    li {
+  
+      display:      grid;
+      place-items:  center;
+      grid-row:     1;
+      grid-column:  1;
+  
+      font-weight: bold;
+      font-size:   0.5em;
+  
+      width: calc(var(--radius) * 2);
+      aspect-ratio: 1;
+      border-radius: 50%;
+  
+      --weighing:   calc(var(--percentage-100) / 100);
+      --percentage: calc(var(--percentage-100) * 1%);
+      --offset:     calc(360deg * var(--accum) / 100);
+      --theta:      calc((360deg * var(--weighing)) / 2 + var(--offset) - 90deg);
+      --gap:        4rem;
+      --gap:        1rem;
+  
+      --pos-x: calc(cos(var(--theta)) * (var(--radius) + var(--gap)));
+      --pos-y: calc(sin(var(--theta)) * (var(--radius) + var(--gap)));
+  
+      &::after { --pos-y: calc(sin(var(--theta)) * (var(--radius) + var(--gap)) + 1lh); }
+      
+      --dx: calc(cos(var(--offset) - 90deg + 0.5 * var(--percentage-100) * 360deg / 100) * var(--knife-cut));
+      --dy: calc(sin(var(--offset) - 90deg + 0.5 * var(--percentage-100) * 360deg / 100) * var(--knife-cut));
+      
+      /*transition: translate 1s;*/
+      translate:  var(--dx) var(--dy);
+  
+      background: conic-gradient(
+        from var(--offset),
+        var(--bg-color) 0% var(--percentage),
+        transparent var(--percentage) 100%
+      );
+  
+      /*
+      &::after {
+        font-weight: normal;
+        counter-reset: variable var(--percentage-100);
+        content: counter(variable) "%";     
+        translate: calc(-1 * var(--dx)) calc(-1 * var(--dy));
+      }
+        */
+  
+      &::after, & > * {
+        grid-row: 1;
+        grid-column: 1;
+        transition: translate 1s;
+        translate: calc(var(--pos-x) - var(--dx)) calc(var(--pos-y) - var(--dy));
+      }
+    }
+  
+    &:hover {
+      --knife-cut: 8px;
+      --knife-cut: 0px;
+    }
+}
+  
+  
+/* Bar chart */
+  
+figure.simplechart:has(.bar) {
+
+  display:        flex;
+  flex-direction: column;
+  gap:            1rem;
+  padding:        1rem;
+
+  .simplechart__chart {
+
+    margin-block-start: 1rem;
+    inline-size:        100%;
+    display:            flex;
+    flex-direction:     column;
+    gap:                1rem;
+
+    li {
+
+      position:     relative;
+      display:      flex;
+      inline-size:  calc(var(--percentage-100) * 0.5cqi);
+      block-size:   1em;
+      background:   var(--bg-color);
+
+      span  {
+
+        position:     absolute;
+        left:         100%;
+        inline-size:  max-content;
+        margin-left:  1em;     
+        font-weight:  bold;
+
+        /*
+        &::after {
+
+          font-family:    monospace;
+          font-weight:    normal;
+          counter-reset:  variable var(--percentage-100);
+          content:        " (" counter(variable) "%)";
+        } 
+          */
+      }
+    }
+
+  }
+
+}

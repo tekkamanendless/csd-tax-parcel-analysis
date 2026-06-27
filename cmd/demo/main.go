@@ -17,6 +17,7 @@ import (
 	"github.com/mattn/go-isatty"
 	"github.com/maxence-charriere/go-app/v11/pkg/app"
 	"github.com/tekkamanendless/csd-tax-parcel-analysis/demo"
+	"github.com/tekkamanendless/csd-tax-parcel-analysis/simplechart"
 )
 
 // The main function is the entry point where the app is configured and started.
@@ -148,6 +149,9 @@ func main() {
 		Title:       "New Castle County School Tax Calculator",
 	})
 	blazarApp.AddPlugin(blazarapp.DefaultPlugins()...)
+	blazarApp.AddPlugin(simplechart.NewPlugin(simplechart.Config{
+		Location: "/web/simplechart/",
+	}))
 
 	slog.InfoContext(ctx, "Disable service worker?", "disableServiceWorker", disableServiceWorker)
 	if disableServiceWorker {
