@@ -419,6 +419,7 @@ func (c *IndexPage) Render() app.UI {
 								},
 							}),
 						simplechart.SimpleChart().
+							Label("Property Value").
 							Items(func() []simplechart.SimpleChartItem {
 								var items []simplechart.SimpleChartItem
 								totalValue := 0.0
@@ -434,6 +435,7 @@ func (c *IndexPage) Render() app.UI {
 								return items
 							}()),
 						simplechart.SimpleChart().
+							Label("Property Tax").
 							Items(func() []simplechart.SimpleChartItem {
 								var items []simplechart.SimpleChartItem
 								totalValue := 0.0
@@ -609,6 +611,7 @@ func (c *IndexPage) Render() app.UI {
 								},
 							}),
 						simplechart.SimpleChart().
+							Label("Property Value").
 							Items(func() []simplechart.SimpleChartItem {
 								var items []simplechart.SimpleChartItem
 								totalValue := 0.0
@@ -624,6 +627,7 @@ func (c *IndexPage) Render() app.UI {
 								return items
 							}()),
 						simplechart.SimpleChart().
+							Label("Property Tax").
 							Items(func() []simplechart.SimpleChartItem {
 								var items []simplechart.SimpleChartItem
 								totalValue := 0.0
