@@ -17,6 +17,7 @@ import (
 	"github.com/mattn/go-isatty"
 	"github.com/maxence-charriere/go-app/v11/pkg/app"
 	"github.com/tekkamanendless/csd-tax-parcel-analysis/demo"
+	"github.com/tekkamanendless/csd-tax-parcel-analysis/mainplugin"
 	"github.com/tekkamanendless/csd-tax-parcel-analysis/simplechart"
 )
 
@@ -151,6 +152,9 @@ func main() {
 	blazarApp.AddPlugin(blazarapp.DefaultPlugins()...)
 	blazarApp.AddPlugin(simplechart.NewPlugin(simplechart.Config{
 		Location: "/web/simplechart/",
+	}))
+	blazarApp.AddPlugin(mainplugin.NewPlugin(mainplugin.Config{
+		Location: "/web/main/",
 	}))
 
 	slog.InfoContext(ctx, "Disable service worker?", "disableServiceWorker", disableServiceWorker)

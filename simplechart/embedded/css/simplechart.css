@@ -136,7 +136,7 @@
 
 .simplechart__chart:is(.pie) {
   
-    --radius:     20vmin;
+    --radius:     10vmin;
     --knife-cut:  2px;
     --knife-cut:  0px;
   
