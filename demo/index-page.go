@@ -753,6 +753,7 @@ INNER JOIN parceltax USING(parcelid)
 WHERE 1
 AND parcel.district = ?
 AND parcel.property_class NOT LIKE '%exempt%'
+AND parcel.school_taxable > 0
 GROUP BY parcel.property_class
 `)
 		var propertyClassResults []PropertyClassResult

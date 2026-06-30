@@ -32,6 +32,7 @@ func New(ctx context.Context, driverName string, connectionString string) (*gorm
 					return
 				}
 				slices.Sort(allValues)
+				//slog.InfoContext(context.TODO(), "median", "allValues", len(allValues))
 				ctx.ResultFloat(allValues[len(allValues)/2])
 			})
 		if err != nil {
