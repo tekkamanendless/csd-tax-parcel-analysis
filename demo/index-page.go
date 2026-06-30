@@ -259,65 +259,74 @@ func (c *IndexPage) OnMount(ctx app.Context) {
 			"a":  "apartment",
 		}
 
+		parcelIDIndex, ok := headerToIndexMap["prclid"]
+		if !ok {
+			return fmt.Errorf("prclid not found in header")
+		}
+		propertyClassIndex, ok := headerToIndexMap["propcl"]
+		if !ok {
+			return fmt.Errorf("prop class not found in header")
+		}
+		descriptionIndex, ok := headerToIndexMap["descript"]
+		if !ok {
+			return fmt.Errorf("descript not found in header")
+		}
+		schoolTaxableIndex, ok := headerToIndexMap["schooltaxable"]
+		if !ok {
+			schoolTaxableIndex, ok = headerToIndexMap["school taxable"]
+			if !ok {
+				return fmt.Errorf("schooltaxable not found in header")
+			}
+		}
+		countyTaxableIndex, ok := headerToIndexMap["countytaxable"]
+		if !ok {
+			countyTaxableIndex, ok = headerToIndexMap["county taxable"]
+			if !ok {
+				return fmt.Errorf("countytaxable not found in header")
+			}
+		}
+
 		for _, row := range rows {
-			dataRow := map[string]string{}
-			for header, index := range headerToIndexMap {
-				dataRow[header] = row[index]
-			}
-
 			parcel := Parcel{
-				ParcelID:      dataRow["prclid"],
-				PropertyClass: strings.ToLower(dataRow["prop class"]),
+				ParcelID: row[parcelIDIndex],
 			}
 
-			if parcel.PropertyClass == "" {
-				if abbreviation := dataRow["propcl"]; abbreviation != "" {
-					parcel.PropertyClass = abbrevationToPropertyClassMap[strings.ToLower(abbreviation)]
-					if parcel.PropertyClass == "" {
-						unhandledAbbrevations[abbreviation]++
-					}
+			if abbreviation := row[propertyClassIndex]; abbreviation != "" {
+				parcel.PropertyClass = abbrevationToPropertyClassMap[strings.ToLower(abbreviation)]
+				if parcel.PropertyClass == "" {
+					unhandledAbbrevations[abbreviation]++
 				}
 			}
 
-			if strings.Contains(strings.ToLower(dataRow["descript"]), "christina") {
+			description := strings.ToLower(row[descriptionIndex])
+			if strings.Contains(description, "christina") {
 				parcel.SchoolDistrict = "christina"
-			} else if strings.Contains(strings.ToLower(dataRow["descript"]), "brandywine") {
+			} else if strings.Contains(description, "brandywine") {
 				parcel.SchoolDistrict = "brandywine"
-			} else if strings.Contains(strings.ToLower(dataRow["descript"]), "colonial") {
+			} else if strings.Contains(description, "colonial") {
 				parcel.SchoolDistrict = "colonial"
-			} else if strings.Contains(strings.ToLower(dataRow["descript"]), "red clay") {
+			} else if strings.Contains(description, "red clay") {
 				parcel.SchoolDistrict = "redclay"
-			} else if strings.Contains(strings.ToLower(dataRow["descript"]), "appoquinimink") {
+			} else if strings.Contains(description, "appoquinimink") {
 				parcel.SchoolDistrict = "appoquinimink"
-			} else if strings.Contains(strings.ToLower(dataRow["descript"]), "smyrna") {
+			} else if strings.Contains(description, "smyrna") {
 				parcel.SchoolDistrict = "smyrna"
 			}
 
-			for _, key := range []string{"schooltaxable", "school taxable"} {
-				stringValue := dataRow[key]
-				if stringValue == "" {
-					continue
-				}
-
-				v, err := strconv.ParseUint(stringValue, 10, 64)
+			{
+				v, err := strconv.ParseUint(row[schoolTaxableIndex], 10, 64)
 				if err != nil {
 					return fmt.Errorf("Error parsing school taxable: %v", err)
 				}
 				parcel.SchoolTaxable = float64(v)
-				break
 			}
-			for _, key := range []string{"countytaxable", "county taxable"} {
-				stringValue := dataRow[key]
-				if stringValue == "" {
-					continue
-				}
 
-				v, err := strconv.ParseUint(stringValue, 10, 64)
+			{
+				v, err := strconv.ParseUint(row[countyTaxableIndex], 10, 64)
 				if err != nil {
-					return fmt.Errorf("Error parsing school taxable: %v", err)
+					return fmt.Errorf("Error parsing county taxable: %v", err)
 				}
 				parcel.CountyTaxable = float64(v)
-				break
 			}
 
 			parcels = append(parcels, parcel)
@@ -346,7 +355,7 @@ func (c *IndexPage) OnMount(ctx app.Context) {
 		return nil
 	})
 
-	err = db.CreateInBatches(parcels, 1000).Error
+	err = db.CreateInBatches(parcels, 2000).Error
 	if err != nil {
 		slog.ErrorContext(ctx.Context, "IndexPage: Error creating parcels", "err", err)
 		return
@@ -755,8 +764,9 @@ AND parcel.district = ?
 AND parcel.property_class NOT LIKE '%exempt%'
 AND parcel.school_taxable > 0
 GROUP BY parcel.property_class
+ORDER BY parcel.property_class
 `)
-		var propertyClassResults []PropertyClassResult
+		propertyClassResults := make([]PropertyClassResult, 0, 100_000)
 		err := c.db.Raw(query, c.selectedSchoolDistrict).
 			Find(&propertyClassResults).
 			Error
@@ -939,8 +949,9 @@ WHERE 1
 AND parcel.district = ?
 AND parcel.property_class NOT LIKE '%exempt%'
 GROUP BY parcel.property_class
+ORDER BY parcel.property_class
 `)
-		var propertyClassResults []PropertyClassResult
+		propertyClassResults := make([]PropertyClassResult, 0, 100_000)
 		err := c.db.Raw(query, c.selectedSchoolDistrict).
 			Find(&propertyClassResults).
 			Error
