@@ -202,34 +202,6 @@ func (c *IndexPage) OnMount(ctx app.Context) {
 		},
 	}
 
-	subFS, err := fs.Sub(dataset.EmbeddedFS, "embedded")
-	if err != nil {
-		slog.ErrorContext(ctx.Context, "IndexPage: Error creating sub FS", "err", err)
-		return
-	}
-
-	file, err := subFS.Open("parcels.2026.christina.csv")
-	if err != nil {
-		slog.ErrorContext(ctx.Context, "IndexPage: Error opening file", "err", err)
-		return
-	}
-	defer file.Close()
-
-	csvReader := csv.NewReader(file)
-	rows, err := csvReader.ReadAll()
-	if err != nil {
-		slog.ErrorContext(ctx.Context, "IndexPage: Error reading CSV", "err", err)
-		return
-	}
-
-	header := rows[0]
-	rows = rows[1:]
-
-	headerToIndexMap := map[string]int{}
-	for i, header := range header {
-		headerToIndexMap[strings.ToLower(header)] = i
-	}
-
 	memdb.Create("my_shared_db", nil)
 
 	db, err := database.New(ctx.Context, "sqlite3", "file:/my_shared_db?vfs=memdb&cache=shared&parseTime=true")
@@ -243,42 +215,137 @@ func (c *IndexPage) OnMount(ctx app.Context) {
 		return
 	}
 
-	schoolDistrictMap := map[string]bool{}
-
 	var parcels []Parcel
-	for _, row := range rows {
-		parcel := Parcel{
-			ParcelID:      row[headerToIndexMap["parcelid"]],
-			PropertyClass: strings.ToLower(row[headerToIndexMap["prop class"]]),
-		}
-		if strings.Contains(strings.ToLower(row[headerToIndexMap["descript"]]), "christina") {
-			parcel.SchoolDistrict = "christina"
-		} else if strings.Contains(strings.ToLower(row[headerToIndexMap["descript"]]), "brandywine") {
-			parcel.SchoolDistrict = "brandywine"
-		} else if strings.Contains(strings.ToLower(row[headerToIndexMap["descript"]]), "colonial") {
-			parcel.SchoolDistrict = "colonial"
-		} else if strings.Contains(strings.ToLower(row[headerToIndexMap["descript"]]), "redclay") {
-			parcel.SchoolDistrict = "redclay"
-		} else if strings.Contains(strings.ToLower(row[headerToIndexMap["descript"]]), "appoquinimink") {
-			parcel.SchoolDistrict = "appoquinimink"
-		}
+	schoolDistrictMap := map[string]bool{}
+	unhandledAbbrevations := map[string]uint{}
 
-		v, err := strconv.ParseUint(row[headerToIndexMap["school taxable"]], 10, 64)
-		if err != nil {
-			slog.ErrorContext(ctx.Context, "IndexPage: Error parsing school taxable", "err", err)
-			return
-		}
-		parcel.SchoolTaxable = float64(v)
-		v, err = strconv.ParseUint(row[headerToIndexMap["county taxable"]], 10, 64)
-		if err != nil {
-			slog.ErrorContext(ctx.Context, "IndexPage: Error parsing county taxable", "err", err)
-			return
-		}
-		parcel.CountyTaxable = float64(v)
-
-		parcels = append(parcels, parcel)
-		schoolDistrictMap[parcel.SchoolDistrict] = true
+	subFS, err := fs.Sub(dataset.EmbeddedFS, "embedded")
+	if err != nil {
+		slog.ErrorContext(ctx.Context, "IndexPage: Error creating sub FS", "err", err)
+		return
 	}
+
+	parseParcelFile := func(path string) error {
+		file, err := subFS.Open(path)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+
+		csvReader := csv.NewReader(file)
+		rows, err := csvReader.ReadAll()
+		if err != nil {
+			return err
+		}
+
+		header := rows[0]
+		slog.InfoContext(ctx.Context, "IndexPage: Header", "header", header)
+		rows = rows[1:]
+
+		headerToIndexMap := map[string]int{}
+		for i, header := range header {
+			headerToIndexMap[strings.ToLower(header)] = i
+		}
+
+		abbrevationToPropertyClassMap := map[string]string{
+			"r":  "residential",
+			"c":  "commercial",
+			"f":  "farmland",
+			"ec": "exempt commercial",
+			"er": "exempt residential",
+			"ef": "exempt farmland",
+			"i":  "industrial",
+			"u":  "utilities",
+			"a":  "apartment",
+		}
+
+		for _, row := range rows {
+			dataRow := map[string]string{}
+			for header, index := range headerToIndexMap {
+				dataRow[header] = row[index]
+			}
+
+			parcel := Parcel{
+				ParcelID:      dataRow["prclid"],
+				PropertyClass: strings.ToLower(dataRow["prop class"]),
+			}
+
+			if parcel.PropertyClass == "" {
+				if abbreviation := dataRow["propcl"]; abbreviation != "" {
+					parcel.PropertyClass = abbrevationToPropertyClassMap[strings.ToLower(abbreviation)]
+					if parcel.PropertyClass == "" {
+						unhandledAbbrevations[abbreviation]++
+					}
+				}
+			}
+
+			if strings.Contains(strings.ToLower(dataRow["descript"]), "christina") {
+				parcel.SchoolDistrict = "christina"
+			} else if strings.Contains(strings.ToLower(dataRow["descript"]), "brandywine") {
+				parcel.SchoolDistrict = "brandywine"
+			} else if strings.Contains(strings.ToLower(dataRow["descript"]), "colonial") {
+				parcel.SchoolDistrict = "colonial"
+			} else if strings.Contains(strings.ToLower(dataRow["descript"]), "red clay") {
+				parcel.SchoolDistrict = "redclay"
+			} else if strings.Contains(strings.ToLower(dataRow["descript"]), "appoquinimink") {
+				parcel.SchoolDistrict = "appoquinimink"
+			} else if strings.Contains(strings.ToLower(dataRow["descript"]), "smyrna") {
+				parcel.SchoolDistrict = "smyrna"
+			}
+
+			for _, key := range []string{"schooltaxable", "school taxable"} {
+				stringValue := dataRow[key]
+				if stringValue == "" {
+					continue
+				}
+
+				v, err := strconv.ParseUint(stringValue, 10, 64)
+				if err != nil {
+					return fmt.Errorf("Error parsing school taxable: %v", err)
+				}
+				parcel.SchoolTaxable = float64(v)
+				break
+			}
+			for _, key := range []string{"countytaxable", "county taxable"} {
+				stringValue := dataRow[key]
+				if stringValue == "" {
+					continue
+				}
+
+				v, err := strconv.ParseUint(stringValue, 10, 64)
+				if err != nil {
+					return fmt.Errorf("Error parsing school taxable: %v", err)
+				}
+				parcel.CountyTaxable = float64(v)
+				break
+			}
+
+			parcels = append(parcels, parcel)
+			schoolDistrictMap[parcel.SchoolDistrict] = true
+		}
+
+		return nil
+	}
+
+	fs.WalkDir(subFS, ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			slog.ErrorContext(ctx.Context, "IndexPage: Error walking directory", "err", err)
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if strings.HasPrefix(path, "parcels.") && strings.HasSuffix(path, ".csv") {
+			slog.InfoContext(ctx.Context, "IndexPage: Found CSV file", "path", path)
+			err := parseParcelFile(path)
+			if err != nil {
+				slog.ErrorContext(ctx.Context, "IndexPage: Error parsing parcel file", "err", err)
+				return err
+			}
+		}
+		return nil
+	})
+
 	err = db.CreateInBatches(parcels, 1000).Error
 	if err != nil {
 		slog.ErrorContext(ctx.Context, "IndexPage: Error creating parcels", "err", err)
@@ -289,6 +356,10 @@ func (c *IndexPage) OnMount(ctx app.Context) {
 
 	c.schoolDistricts = slices.Collect(maps.Keys(schoolDistrictMap))
 	slices.Sort(c.schoolDistricts)
+
+	if len(unhandledAbbrevations) > 0 {
+		slog.ErrorContext(ctx.Context, "IndexPage: Unhandled abbreviations", "abbrevations", unhandledAbbrevations)
+	}
 }
 
 func (c *IndexPage) OnNav(ctx app.Context) {
