@@ -117,8 +117,7 @@ func main() {
 			Path: "/",
 			Component: func() app.Composer {
 				return blazar.MainLayout().
-					HeadlineText("New Castle County School Tax Calculator").
-					Drawer(nil)
+					HeadlineText("New Castle County School Tax Calculator")
 			},
 			Children: []router.Route{
 				{

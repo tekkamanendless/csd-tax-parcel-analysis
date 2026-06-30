@@ -355,7 +355,13 @@ func (c *IndexPage) OnMount(ctx app.Context) {
 		return nil
 	})
 
-	err = db.CreateInBatches(parcels, 2000).Error
+	err = db.Transaction(func(db *gorm.DB) error {
+		err := db.CreateInBatches(parcels, 2000).Error
+		if err != nil {
+			return err
+		}
+		return nil
+	})
 	if err != nil {
 		slog.ErrorContext(ctx.Context, "IndexPage: Error creating parcels", "err", err)
 		return
