@@ -429,6 +429,7 @@ func (c *IndexPage) Render() app.UI {
 					Body(
 						blazar.Input[float64]().
 							Label("Residential Appeals Rate").
+							Suffix("%").
 							Disabled(c.loading).
 							Bind(&c.residentialAppealsRate).
 							On("change", func(ctx app.Context, e app.Event) {
@@ -446,6 +447,7 @@ func (c *IndexPage) Render() app.UI {
 							}),
 						blazar.Input[float64]().
 							Label("Residential Appeals Amount").
+							Prefix("$").
 							Disabled(c.loading || len(c.propertyClassResults2025) == 0).
 							Bind(&c.residentialAppealsAmount).
 							On("change", func(ctx app.Context, e app.Event) {
@@ -471,6 +473,7 @@ func (c *IndexPage) Render() app.UI {
 					Body(
 						blazar.Input[float64]().
 							Label("Non-Residential Appeals Rate").
+							Suffix("%").
 							Disabled(c.loading).
 							Bind(&c.nonResidentialAppealsRate).
 							On("change", func(ctx app.Context, e app.Event) {
@@ -488,6 +491,7 @@ func (c *IndexPage) Render() app.UI {
 							}),
 						blazar.Input[float64]().
 							Label("Non-Residential Appeals Amount").
+							Prefix("$").
 							Disabled(c.loading || len(c.propertyClassResults2025) == 0).
 							Bind(&c.nonResidentialAppealsAmount).
 							On("change", func(ctx app.Context, e app.Event) {
@@ -646,18 +650,22 @@ func (c *IndexPage) Render() app.UI {
 								app.Legend().Text("Current"),
 								blazar.Input[string]().
 									Label("Total Tax").
+									Prefix("$").
 									Disabled(true).
-									Value(printer.Sprintf("$%.0f", c.totalTax)),
+									Value(printer.Sprintf("%.0f", c.totalTax)),
 								blazar.Input[float64]().
 									Label("Non-Residential Rate Multiplier").
+									Suffix("x").
 									Disabled(true).
 									Value(c.nonResidentialRateMultiplier),
 								blazar.Input[float64]().
 									Label("Residential Rate").
+									Suffix("%").
 									Disabled(true).
 									Value(c.residentialRate),
 								blazar.Input[float64]().
 									Label("Non-Residential Rate").
+									Suffix("%").
 									Disabled(true).
 									Value(c.nonResidentialRate),
 							),
@@ -666,18 +674,22 @@ func (c *IndexPage) Render() app.UI {
 								app.Legend().Text("Proposed"),
 								blazar.Input[float64]().
 									Label("Maximum Rate Multiplier").
+									Suffix("x").
 									Disabled(c.calculating).
 									Bind(&c.maximumRateMultiplier),
 								blazar.Input[float64]().
 									Label("Non-Residential Rate Multiplier").
+									Suffix("x").
 									Disabled(c.calculating).
 									Bind(&c.proposedNonResidentialRateMultiplier),
 								blazar.Input[float64]().
 									Label("Residential Rate").
+									Suffix("%").
 									Disabled(c.calculating).
 									Bind(&c.proposedResidentialRate),
 								blazar.Input[float64]().
 									Label("Non-Residential Rate").
+									Suffix("%").
 									Disabled(c.calculating).
 									Bind(&c.proposedNonResidentialRate),
 								blazar.Select().
@@ -701,6 +713,7 @@ func (c *IndexPage) Render() app.UI {
 									),
 								blazar.Input[float64]().
 									Label("Special Apartment Multiplier").
+									Suffix("x").
 									Disabled(c.calculating).
 									Bind(&c.proposedSpecialApartmentMultiplier),
 							),
@@ -722,8 +735,9 @@ func (c *IndexPage) Render() app.UI {
 					Body(
 						blazar.Input[string]().
 							Label("Proposed Total Tax").
+							Prefix("$").
 							Disabled(true).
-							Value(printer.Sprintf("$%.0f", c.proposedTotalTax)),
+							Value(printer.Sprintf("%.0f", c.proposedTotalTax)),
 						blazar.Table[PropertyClassResult]().
 							Rows(c.proposedPropertyClassResults).
 							Columns([]blazar.TableColumn[PropertyClassResult]{
