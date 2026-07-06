@@ -430,6 +430,8 @@ func (c *IndexPage) Render() app.UI {
 						blazar.Input[float64]().
 							Label("Residential Appeals Rate").
 							Suffix("%").
+							Min(0).
+							Max(100).
 							Disabled(c.loading).
 							Bind(&c.residentialAppealsRate).
 							On("change", func(ctx app.Context, e app.Event) {
@@ -448,6 +450,7 @@ func (c *IndexPage) Render() app.UI {
 						blazar.Input[float64]().
 							Label("Residential Appeals Amount").
 							Prefix("$").
+							Min(0).
 							Disabled(c.loading || len(c.propertyClassResults2025) == 0).
 							Bind(&c.residentialAppealsAmount).
 							On("change", func(ctx app.Context, e app.Event) {
@@ -474,6 +477,8 @@ func (c *IndexPage) Render() app.UI {
 						blazar.Input[float64]().
 							Label("Non-Residential Appeals Rate").
 							Suffix("%").
+							Min(0).
+							Max(100).
 							Disabled(c.loading).
 							Bind(&c.nonResidentialAppealsRate).
 							On("change", func(ctx app.Context, e app.Event) {
@@ -492,6 +497,7 @@ func (c *IndexPage) Render() app.UI {
 						blazar.Input[float64]().
 							Label("Non-Residential Appeals Amount").
 							Prefix("$").
+							Min(0).
 							Disabled(c.loading || len(c.propertyClassResults2025) == 0).
 							Bind(&c.nonResidentialAppealsAmount).
 							On("change", func(ctx app.Context, e app.Event) {
@@ -675,21 +681,28 @@ func (c *IndexPage) Render() app.UI {
 								blazar.Input[float64]().
 									Label("Maximum Rate Multiplier").
 									Suffix("x").
+									Min(0).
 									Disabled(c.calculating).
 									Bind(&c.maximumRateMultiplier),
 								blazar.Input[float64]().
 									Label("Non-Residential Rate Multiplier").
 									Suffix("x").
+									Min(0).
+									Max(c.maximumRateMultiplier).
 									Disabled(c.calculating).
 									Bind(&c.proposedNonResidentialRateMultiplier),
 								blazar.Input[float64]().
 									Label("Residential Rate").
 									Suffix("%").
+									Min(0).
+									Max(100).
 									Disabled(c.calculating).
 									Bind(&c.proposedResidentialRate),
 								blazar.Input[float64]().
 									Label("Non-Residential Rate").
 									Suffix("%").
+									Min(0).
+									Max(100).
 									Disabled(c.calculating).
 									Bind(&c.proposedNonResidentialRate),
 								blazar.Select().
@@ -714,6 +727,7 @@ func (c *IndexPage) Render() app.UI {
 								blazar.Input[float64]().
 									Label("Special Apartment Multiplier").
 									Suffix("x").
+									Min(0).
 									Disabled(c.calculating).
 									Bind(&c.proposedSpecialApartmentMultiplier),
 							),
