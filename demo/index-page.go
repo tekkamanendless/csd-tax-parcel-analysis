@@ -388,6 +388,144 @@ func (c *IndexPage) OnNav(ctx app.Context) {
 }
 
 func (c *IndexPage) Render() app.UI {
+	columns := []blazar.TableColumn[PropertyClassResult]{
+		{
+			Name: "Property Class",
+			Value: func(row PropertyClassResult) any {
+				return row.PropertyClass
+			},
+		},
+		{
+			Name: "Property Count",
+			Value: func(row PropertyClassResult) any {
+				return row.PropertyCount
+			},
+			Type: blazar.TableColumnTypeNumber,
+		},
+		{
+			Name: "Property Value",
+			Value: func(row PropertyClassResult) any {
+				return row.PropertyValue
+			},
+			Format: func(value any) any {
+				return fmt.Sprintf("$%v", blazar.TableColumnFormatNumber(value))
+			},
+			Type: blazar.TableColumnTypeNumber,
+		},
+		{
+			Name: "Property Tax",
+			Value: func(row PropertyClassResult) any {
+				return row.PropertyTax
+			},
+			Format: func(value any) any {
+				return fmt.Sprintf("$%v", blazar.TableColumnFormatNumber(value))
+			},
+			Type: blazar.TableColumnTypeNumber,
+		},
+		{
+			Name: "Average Value",
+			Value: func(row PropertyClassResult) any {
+				if row.PropertyClass == "Total" {
+					return nil
+				}
+				return row.AverageValue
+			},
+			Format: func(value any) any {
+				if value == nil {
+					return nil
+				}
+				return fmt.Sprintf("$%v", blazar.TableColumnFormatNumber(value))
+			},
+			Type: blazar.TableColumnTypeNumber,
+		},
+		{
+			Name: "Average Tax",
+			Value: func(row PropertyClassResult) any {
+				if row.PropertyClass == "Total" {
+					return nil
+				}
+				return row.AverageTax
+			},
+			Format: func(value any) any {
+				if value == nil {
+					return nil
+				}
+				return fmt.Sprintf("$%v", blazar.TableColumnFormatNumber(value))
+			},
+			Type: blazar.TableColumnTypeNumber,
+		},
+		{
+			Name: "Median Value",
+			Value: func(row PropertyClassResult) any {
+				if row.PropertyClass == "Total" {
+					return nil
+				}
+				return row.MedianValue
+			},
+			Format: func(value any) any {
+				if value == nil {
+					return nil
+				}
+				return fmt.Sprintf("$%v", blazar.TableColumnFormatNumber(value))
+			},
+			Type: blazar.TableColumnTypeNumber,
+		},
+		{
+			Name: "Median Tax",
+			Value: func(row PropertyClassResult) any {
+				if row.PropertyClass == "Total" {
+					return nil
+				}
+				return row.MedianTax
+			},
+			Format: func(value any) any {
+				if value == nil {
+					return nil
+				}
+				return fmt.Sprintf("$%v", blazar.TableColumnFormatNumber(value))
+			},
+			Type: blazar.TableColumnTypeNumber,
+		},
+	}
+
+	propertyClassResults2025 := []PropertyClassResult{}
+	if len(c.propertyClassResults2025) > 0 {
+		propertyClassResults2025 = append(propertyClassResults2025, c.propertyClassResults2025...)
+		{
+			totalRow := PropertyClassResult{
+				PropertyClass: "Total",
+				PropertyCount: 0,
+				PropertyValue: 0,
+				PropertyTax:   0,
+			}
+			for _, propertyClassResult := range c.propertyClassResults2025 {
+				totalRow.PropertyCount += propertyClassResult.PropertyCount
+				totalRow.PropertyValue += propertyClassResult.PropertyValue
+				totalRow.PropertyTax += propertyClassResult.PropertyTax
+			}
+			propertyClassResults2025 = append(propertyClassResults2025, totalRow)
+		}
+	}
+
+	proposedPropertyClassResults := []PropertyClassResult{}
+	if len(c.proposedPropertyClassResults) > 0 {
+		proposedPropertyClassResults = append(proposedPropertyClassResults, c.proposedPropertyClassResults...)
+		{
+			totalRow := PropertyClassResult{
+				PropertyClass: "Total",
+				PropertyCount: 0,
+				PropertyValue: 0,
+				PropertyTax:   0,
+			}
+			for _, propertyClassResult := range c.propertyClassResults2025 {
+				totalRow.PropertyCount += propertyClassResult.PropertyCount
+				totalRow.PropertyValue += propertyClassResult.PropertyValue
+				totalRow.PropertyTax += propertyClassResult.PropertyTax
+			}
+			proposedPropertyClassResults = append(proposedPropertyClassResults, totalRow)
+		}
+	}
+
 	return blazar.Page().
 		Body(
 			app.Div().
@@ -534,89 +672,16 @@ func (c *IndexPage) Render() app.UI {
 							}),
 					)
 			}),
-			app.If(len(c.propertyClassResults2025) > 0, func() app.UI {
+			app.If(len(propertyClassResults2025) > 0, func() app.UI {
 				return app.Div().
 					Body(
 						blazar.Table[PropertyClassResult]().
 							Title("2025").
-							Rows(c.propertyClassResults2025).
-							Columns([]blazar.TableColumn[PropertyClassResult]{
-								{
-									Name: "Property Class",
-									Value: func(row PropertyClassResult) any {
-										return row.PropertyClass
-									},
-								},
-								{
-									Name: "Property Count",
-									Value: func(row PropertyClassResult) any {
-										return row.PropertyCount
-									},
-									Type: blazar.TableColumnTypeNumber,
-								},
-								{
-									Name: "Property Value",
-									Value: func(row PropertyClassResult) any {
-										return row.PropertyValue
-									},
-									Format: func(value any) any {
-										return fmt.Sprintf("$%v", blazar.TableColumnFormatNumber(value))
-									},
-									Type: blazar.TableColumnTypeNumber,
-								},
-								{
-									Name: "Property Tax",
-									Value: func(row PropertyClassResult) any {
-										return row.PropertyTax
-									},
-									Format: func(value any) any {
-										return fmt.Sprintf("$%v", blazar.TableColumnFormatNumber(value))
-									},
-									Type: blazar.TableColumnTypeNumber,
-								},
-								{
-									Name: "Average Value",
-									Value: func(row PropertyClassResult) any {
-										return row.AverageValue
-									},
-									Format: func(value any) any {
-										return fmt.Sprintf("$%v", blazar.TableColumnFormatNumber(value))
-									},
-									Type: blazar.TableColumnTypeNumber,
-								},
-								{
-									Name: "Average Tax",
-									Value: func(row PropertyClassResult) any {
-										return row.AverageTax
-									},
-									Format: func(value any) any {
-										return fmt.Sprintf("$%v", blazar.TableColumnFormatNumber(value))
-									},
-									Type: blazar.TableColumnTypeNumber,
-								},
-								{
-									Name: "Median Value",
-									Value: func(row PropertyClassResult) any {
-										return row.MedianValue
-									},
-									Format: func(value any) any {
-										return fmt.Sprintf("$%v", blazar.TableColumnFormatNumber(value))
-									},
-									Type: blazar.TableColumnTypeNumber,
-								},
-								{
-									Name: "Median Tax",
-									Value: func(row PropertyClassResult) any {
-										return row.MedianTax
-									},
-									Format: func(value any) any {
-										return fmt.Sprintf("$%v", blazar.TableColumnFormatNumber(value))
-									},
-									Type: blazar.TableColumnTypeNumber,
-								},
-							}),
+							Rows(propertyClassResults2025).
+							Columns(columns),
 						app.Div().
 							Class("row").
+							Style("padding-top", "1em").
 							Body(
 								simplechart.SimpleChart().
 									Label("Property Value").
@@ -744,7 +809,7 @@ func (c *IndexPage) Render() app.UI {
 							}),
 					)
 			}),
-			app.If(len(c.proposedPropertyClassResults) > 0, func() app.UI {
+			app.If(len(proposedPropertyClassResults) > 0, func() app.UI {
 				return app.Div().
 					Body(
 						blazar.Input[string]().
@@ -753,84 +818,11 @@ func (c *IndexPage) Render() app.UI {
 							Disabled(true).
 							Value(printer.Sprintf("%.0f", c.proposedTotalTax)),
 						blazar.Table[PropertyClassResult]().
-							Rows(c.proposedPropertyClassResults).
-							Columns([]blazar.TableColumn[PropertyClassResult]{
-								{
-									Name: "Property Class",
-									Value: func(row PropertyClassResult) any {
-										return row.PropertyClass
-									},
-								},
-								{
-									Name: "Property Count",
-									Value: func(row PropertyClassResult) any {
-										return row.PropertyCount
-									},
-									Type: blazar.TableColumnTypeNumber,
-								},
-								{
-									Name: "Property Value",
-									Value: func(row PropertyClassResult) any {
-										return row.PropertyValue
-									},
-									Format: func(value any) any {
-										return fmt.Sprintf("$%v", blazar.TableColumnFormatNumber(value))
-									},
-									Type: blazar.TableColumnTypeNumber,
-								},
-								{
-									Name: "Property Tax",
-									Value: func(row PropertyClassResult) any {
-										return row.PropertyTax
-									},
-									Format: func(value any) any {
-										return fmt.Sprintf("$%v", blazar.TableColumnFormatNumber(value))
-									},
-									Type: blazar.TableColumnTypeNumber,
-								},
-								{
-									Name: "Average Value",
-									Value: func(row PropertyClassResult) any {
-										return row.AverageValue
-									},
-									Format: func(value any) any {
-										return fmt.Sprintf("$%v", blazar.TableColumnFormatNumber(value))
-									},
-									Type: blazar.TableColumnTypeNumber,
-								},
-								{
-									Name: "Average Tax",
-									Value: func(row PropertyClassResult) any {
-										return row.AverageTax
-									},
-									Format: func(value any) any {
-										return fmt.Sprintf("$%v", blazar.TableColumnFormatNumber(value))
-									},
-									Type: blazar.TableColumnTypeNumber,
-								},
-								{
-									Name: "Median Value",
-									Value: func(row PropertyClassResult) any {
-										return row.MedianValue
-									},
-									Format: func(value any) any {
-										return fmt.Sprintf("$%v", blazar.TableColumnFormatNumber(value))
-									},
-									Type: blazar.TableColumnTypeNumber,
-								},
-								{
-									Name: "Median Tax",
-									Value: func(row PropertyClassResult) any {
-										return row.MedianTax
-									},
-									Format: func(value any) any {
-										return fmt.Sprintf("$%v", blazar.TableColumnFormatNumber(value))
-									},
-									Type: blazar.TableColumnTypeNumber,
-								},
-							}),
+							Rows(proposedPropertyClassResults).
+							Columns(columns),
 						app.Div().
 							Class("row").
+							Style("padding-top", "1em").
 							Body(
 								simplechart.SimpleChart().
 									Label("Property Value").

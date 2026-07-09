@@ -131,7 +131,7 @@
 }*/
 
 .simplechart__chart:is(.pie) {
-    --radius:     10vmin;
+    --radius:     15vmin;
     --knife-cut:  2px;
     --knife-cut:  0px;
 
