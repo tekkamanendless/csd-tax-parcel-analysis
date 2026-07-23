@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-app-blazar/blazar/blazar"
 	"github.com/maxence-charriere/go-app/v11/pkg/app"
@@ -532,6 +533,7 @@ func (c *IndexPage) Render() app.UI {
 				Body(
 					blazar.Select().
 						Label("School District").
+						Disabled(c.loading).
 						AllowedValue(func() []blazar.SelectOption {
 							options := []blazar.SelectOption{
 								{
@@ -658,18 +660,24 @@ func (c *IndexPage) Render() app.UI {
 					Body(
 						blazar.Button().
 							Label("Get Property Values").
-							Disabled(c.calculating).
+							Disabled(c.loading).
 							On("click", func(ctx app.Context, e app.Event) {
 								slog.InfoContext(ctx.Context, "IndexPage: Get Property Values clicked 1", "selectedSchoolDistrict", c.selectedSchoolDistrict)
 
-								ctx.Defer(func(ctx app.Context) {
-									ctx.Async(func() {
-										c.updateForNewSchoolDistrict(ctx)
-									})
+								c.loading = true
+								ctx.After(100*time.Millisecond, func(ctx app.Context) {
+									c.updateForNewSchoolDistrict(ctx)
+
+									c.loading = false
+									ctx.Update()
 								})
 
 								slog.InfoContext(ctx.Context, "IndexPage: Get Property Values clicked 2", "selectedSchoolDistrict", c.selectedSchoolDistrict)
 							}),
+						app.If(c.loading, func() app.UI {
+							return blazar.ProgressBar().
+								Indeterminate(true)
+						}),
 					)
 			}),
 			app.If(len(propertyClassResults2025) > 0, func() app.UI {
@@ -772,7 +780,7 @@ func (c *IndexPage) Render() app.UI {
 									Bind(&c.proposedNonResidentialRate),
 								blazar.Select().
 									Label("Apartments Are Classifed As").
-									//Disabled(c.calculating).
+									Disabled(c.calculating).
 									Bind(&c.proposedApartmentClass).
 									AllowedValue(
 										blazar.SelectOption{},
@@ -802,11 +810,19 @@ func (c *IndexPage) Render() app.UI {
 							On("click", func(ctx app.Context, e app.Event) {
 								slog.InfoContext(ctx.Context, "IndexPage: Calculate button clicked")
 
-								ctx.Defer(func(ctx app.Context) {
+								c.calculating = true
+								ctx.After(100*time.Millisecond, func(ctx app.Context) {
 									c.refigureProposal(ctx)
 									c.calculateProposedPropertyClassResults(ctx)
+
+									c.calculating = false
+									ctx.Update()
 								})
 							}),
+						app.If(c.calculating, func() app.UI {
+							return blazar.ProgressBar().
+								Indeterminate(true)
+						}),
 					)
 			}),
 			app.If(len(proposedPropertyClassResults) > 0, func() app.UI {
@@ -869,12 +885,7 @@ func (c *IndexPage) updateForNewSchoolDistrict(ctx app.Context) {
 		return
 	}
 
-	ctx.Dispatch(func(ctx app.Context) {
-		c.loading = true
-	})
-
-	ctx.Async(func() {
-		query := c.query(`
+	query := c.query(`
 SELECT
 parcel.property_class,
 COUNT(*) AS property_count,
@@ -893,67 +904,64 @@ AND parcel.school_taxable > 0
 GROUP BY parcel.property_class
 ORDER BY parcel.property_class
 `)
-		propertyClassResults := make([]PropertyClassResult, 0, 100_000)
-		err := c.db.Raw(query, c.selectedSchoolDistrict).
-			Find(&propertyClassResults).
-			Error
-		if err != nil {
-			slog.ErrorContext(ctx.Context, "IndexPage: Error executing query", "err", err)
+	propertyClassResults := make([]PropertyClassResult, 0, 100_000)
+	err := c.db.Raw(query, c.selectedSchoolDistrict).
+		Find(&propertyClassResults).
+		Error
+	if err != nil {
+		slog.ErrorContext(ctx.Context, "IndexPage: Error executing query", "err", err)
+		return
+	}
+
+	ctx.Dispatch(func(ctx app.Context) {
+		c.propertyClassResults2025 = propertyClassResults
+
+		c.totalTax = 0
+		for _, propertyClassResult := range c.propertyClassResults2025 {
+			c.totalTax += propertyClassResult.PropertyTax
+		}
+
+		{
+			residentialTotalTax := 0.0
+			nonResidentialTotalTax := 0.0
+			for _, propertyClassResult := range c.propertyClassResults2025 {
+				if slices.Contains([]string{"farmland", "residential"}, propertyClassResult.PropertyClass) {
+					residentialTotalTax += propertyClassResult.PropertyTax
+				} else {
+					nonResidentialTotalTax += propertyClassResult.PropertyTax
+				}
+			}
+
+			if c.residentialAppealsAmount == 0 && c.residentialAppealsRate > 0 {
+				c.residentialAppealsAmount = residentialTotalTax * c.residentialAppealsRate / 100.0
+			}
+			if c.nonResidentialAppealsAmount == 0 && c.nonResidentialAppealsRate > 0 {
+				c.nonResidentialAppealsAmount = nonResidentialTotalTax * c.nonResidentialAppealsRate / 100.0
+			}
+		}
+
+		c.totalTax -= c.residentialAppealsAmount
+		c.totalTax -= c.nonResidentialAppealsAmount
+
+		var districtRate TaxRate
+		for _, testRate := range c.taxRates {
+			if testRate.SchoolDistrict == c.selectedSchoolDistrict {
+				districtRate = testRate
+				break
+			}
+		}
+		if districtRate.SchoolDistrict == "" {
+			slog.ErrorContext(ctx.Context, "IndexPage: updateForNewSchoolDistrict: District rate not found", "selectedSchoolDistrict", c.selectedSchoolDistrict)
 			return
 		}
 
-		ctx.Dispatch(func(ctx app.Context) {
-			c.propertyClassResults2025 = propertyClassResults
+		c.nonResidentialRateMultiplier = districtRate.NonResidentialRate / districtRate.ResidentialRate
+		c.residentialRate = districtRate.ResidentialRate
+		c.nonResidentialRate = districtRate.NonResidentialRate
 
-			c.totalTax = 0
-			for _, propertyClassResult := range c.propertyClassResults2025 {
-				c.totalTax += propertyClassResult.PropertyTax
-			}
-
-			{
-				residentialTotalTax := 0.0
-				nonResidentialTotalTax := 0.0
-				for _, propertyClassResult := range c.propertyClassResults2025 {
-					if slices.Contains([]string{"farmland", "residential"}, propertyClassResult.PropertyClass) {
-						residentialTotalTax += propertyClassResult.PropertyTax
-					} else {
-						nonResidentialTotalTax += propertyClassResult.PropertyTax
-					}
-				}
-
-				if c.residentialAppealsAmount == 0 && c.residentialAppealsRate > 0 {
-					c.residentialAppealsAmount = residentialTotalTax * c.residentialAppealsRate / 100.0
-				}
-				if c.nonResidentialAppealsAmount == 0 && c.nonResidentialAppealsRate > 0 {
-					c.nonResidentialAppealsAmount = nonResidentialTotalTax * c.nonResidentialAppealsRate / 100.0
-				}
-			}
-
-			c.totalTax -= c.residentialAppealsAmount
-			c.totalTax -= c.nonResidentialAppealsAmount
-
-			var districtRate TaxRate
-			for _, testRate := range c.taxRates {
-				if testRate.SchoolDistrict == c.selectedSchoolDistrict {
-					districtRate = testRate
-					break
-				}
-			}
-			if districtRate.SchoolDistrict == "" {
-				slog.ErrorContext(ctx.Context, "IndexPage: updateForNewSchoolDistrict: District rate not found", "selectedSchoolDistrict", c.selectedSchoolDistrict)
-				return
-			}
-
-			c.nonResidentialRateMultiplier = districtRate.NonResidentialRate / districtRate.ResidentialRate
-			c.residentialRate = districtRate.ResidentialRate
-			c.nonResidentialRate = districtRate.NonResidentialRate
-
-			c.proposedNonResidentialRateMultiplier = c.nonResidentialRateMultiplier
-			c.proposedResidentialRate = c.residentialRate
-			c.proposedNonResidentialRate = c.nonResidentialRate
-
-			c.loading = false
-		})
+		c.proposedNonResidentialRateMultiplier = c.nonResidentialRateMultiplier
+		c.proposedResidentialRate = c.residentialRate
+		c.proposedNonResidentialRate = c.nonResidentialRate
 	})
 }
 
@@ -1087,13 +1095,9 @@ func (c *IndexPage) calculateProposedPropertyClassResults(ctx app.Context) {
 		return
 	}
 
-	ctx.Dispatch(func(ctx app.Context) {
-		c.calculating = true
-		c.proposedPropertyClassResults = []PropertyClassResult{}
-	})
+	c.proposedPropertyClassResults = []PropertyClassResult{}
 
-	ctx.Async(func() {
-		query := c.proposedQuery(`
+	query := c.proposedQuery(`
 SELECT
 parcel.property_class,
 COUNT(*) AS property_count,
@@ -1111,34 +1115,31 @@ AND parcel.property_class NOT LIKE '%exempt%'
 GROUP BY parcel.property_class
 ORDER BY parcel.property_class
 `)
-		propertyClassResults := make([]PropertyClassResult, 0, 100_000)
-		err := c.db.Raw(query, c.selectedSchoolDistrict).
-			Find(&propertyClassResults).
-			Error
-		if err != nil {
-			slog.ErrorContext(ctx.Context, "IndexPage: calculateProposedPropertyClassResults: Error executing query", "err", err)
-			return
+	propertyClassResults := make([]PropertyClassResult, 0, 100_000)
+	err := c.db.Raw(query, c.selectedSchoolDistrict).
+		Find(&propertyClassResults).
+		Error
+	if err != nil {
+		slog.ErrorContext(ctx.Context, "IndexPage: calculateProposedPropertyClassResults: Error executing query", "err", err)
+		return
+	}
+
+	ctx.Dispatch(func(ctx app.Context) {
+		c.proposedPropertyClassResults = propertyClassResults
+
+		proposedResidentialTax := 0.0
+		proposedNonResidentialTax := 0.0
+		proposedApartmentTax := 0.0
+		for _, propertyClassResult := range c.proposedPropertyClassResults {
+			if slices.Contains([]string{"farmland", "residential"}, propertyClassResult.PropertyClass) {
+				proposedResidentialTax += propertyClassResult.PropertyTax
+			} else if propertyClassResult.PropertyClass == "apartment" {
+				proposedApartmentTax += propertyClassResult.PropertyTax
+			} else {
+				proposedNonResidentialTax += propertyClassResult.PropertyTax
+			}
 		}
 
-		ctx.Dispatch(func(ctx app.Context) {
-			c.proposedPropertyClassResults = propertyClassResults
-
-			proposedResidentialTax := 0.0
-			proposedNonResidentialTax := 0.0
-			proposedApartmentTax := 0.0
-			for _, propertyClassResult := range c.proposedPropertyClassResults {
-				if slices.Contains([]string{"farmland", "residential"}, propertyClassResult.PropertyClass) {
-					proposedResidentialTax += propertyClassResult.PropertyTax
-				} else if propertyClassResult.PropertyClass == "apartment" {
-					proposedApartmentTax += propertyClassResult.PropertyTax
-				} else {
-					proposedNonResidentialTax += propertyClassResult.PropertyTax
-				}
-			}
-
-			c.proposedTotalTax = proposedResidentialTax*(1.0-c.residentialAppealsRate/100.0) + proposedNonResidentialTax*(1.0-c.nonResidentialAppealsRate/100.0) + proposedApartmentTax*(1.0-c.nonResidentialAppealsRate/100.0)
-
-			c.calculating = false
-		})
+		c.proposedTotalTax = proposedResidentialTax*(1.0-c.residentialAppealsRate/100.0) + proposedNonResidentialTax*(1.0-c.nonResidentialAppealsRate/100.0) + proposedApartmentTax*(1.0-c.nonResidentialAppealsRate/100.0)
 	})
 }
