@@ -158,7 +158,7 @@ func main() {
 
 	slog.InfoContext(ctx, "Disable service worker?", "disableServiceWorker", disableServiceWorker)
 	if disableServiceWorker {
-		blazarApp.DisableServiceWorker()
+		blazarApp.DisableServiceWorker(disableServiceWorker)
 	}
 	blazarApp.AutoDisableServiceWorker(true)
 
