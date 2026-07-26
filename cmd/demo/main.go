@@ -92,7 +92,7 @@ func main() {
 		slog.InfoContext(ctx, "Logging level includes error")
 	}
 
-	disableServiceWorker := true
+	disableServiceWorker := false
 	if value := os.Getenv("DISABLE_SERVICE_WORKER"); value != "" {
 		v, err := strconv.ParseBool(value)
 		if err != nil {
@@ -160,6 +160,7 @@ func main() {
 	if disableServiceWorker {
 		blazarApp.DisableServiceWorker()
 	}
+	blazarApp.AutoDisableServiceWorker(true)
 
 	wrapper := http.NewServeMux()
 	wrapper.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
