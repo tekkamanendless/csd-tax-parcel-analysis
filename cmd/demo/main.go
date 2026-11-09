@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/go-app-blazar/blazar/blazar"
 	"github.com/go-app-blazar/blazar/blazarapp"
 	"github.com/go-app-blazar/router"
 	"github.com/joho/godotenv"
@@ -31,7 +30,7 @@ func main() {
 
 	{
 		logLevel := "info"
-		if value := os.Getenv("LOG_LEVEL"); value != "" {
+		if value := app.Getenv("LOG_LEVEL"); value != "" {
 			logLevel = value
 		}
 		slogConfig := slog.HandlerOptions{
@@ -112,36 +111,7 @@ func main() {
 		}
 	}
 
-	router.Register(ctx,
-		router.Route{
-			Path: "/",
-			Component: func() app.Composer {
-				return blazar.MainLayout().
-					HeadlineText("New Castle County School Tax Calculator")
-			},
-			Children: []router.Route{
-				{
-					Path: "/",
-					Component: func() app.Composer {
-						return &demo.IndexPage{}
-					},
-				},
-			},
-		},
-	)
-
-	// Once the routes set up, the next thing to do is to either launch the app
-	// or the server that serves the app.
-	//
-	// When executed on the client-side, the RunWhenOnBrowser() function
-	// launches the app,  starting a loop that listens for app events and
-	// executes client instructions. Since it is a blocking call, the code below
-	// it will never be executed.
-	//
-	// When executed on the server-side, RunWhenOnBrowser() does nothing, which
-	// lets room for server implementation without the need for precompiling
-	// instructions.
-	app.RunWhenOnBrowser()
+	router.Register(ctx, demo.Routes()...)
 
 	blazarApp := blazarapp.NewApp(blazarapp.Config{
 		Name:        "New Castle County School Tax Calculator",
@@ -155,6 +125,8 @@ func main() {
 	blazarApp.AddPlugin(mainplugin.NewPlugin(mainplugin.Config{
 		Location: "/web/main/",
 	}))
+
+	blazarApp.RunWhenOnBrowser()
 
 	slog.InfoContext(ctx, "Disable service worker?", "disableServiceWorker", disableServiceWorker)
 	if disableServiceWorker {

@@ -131,9 +131,9 @@
 }*/
 
 .simplechart__chart:is(.pie) {
-    --radius:     15vmin;
-    --knife-cut:  2px;
-    --knife-cut:  0px;
+    --radius: var(--simplechart-radius, 15vmin);
+    --knife-cut: var(--simplechart-knife-cut, 2px);
+    --knife-cut: var(--simplechart-knife-cut-hover, 0px);
 
     li {
       display:      grid;

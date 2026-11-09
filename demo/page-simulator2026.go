@@ -24,7 +24,7 @@ import (
 	"gorm.io/gorm"
 )
 
-type IndexPage struct {
+type Simulator2026Page struct {
 	app.Compo
 
 	db              *gorm.DB
@@ -63,7 +63,7 @@ type IndexPage struct {
 
 var printer *message.Printer = message.NewPrinter(language.English)
 
-func (c *IndexPage) query(query string) string {
+func (c *Simulator2026Page) query(query string) string {
 	var queryPrefix string
 	{
 		residentialPropertyClasses := []string{
@@ -93,11 +93,11 @@ func (c *IndexPage) query(query string) string {
 	}
 
 	output := queryPrefix + query
-	slog.InfoContext(context.TODO(), "IndexPage: Query", "query", output)
+	slog.InfoContext(context.TODO(), "Simulator2026Page: Query", "query", output)
 	return output
 }
 
-func (c *IndexPage) proposedQuery(query string) string {
+func (c *Simulator2026Page) proposedQuery(query string) string {
 	var queryPrefix string
 	{
 		residentialPropertyClasses := []string{
@@ -138,7 +138,7 @@ func (c *IndexPage) proposedQuery(query string) string {
 	}
 
 	output := queryPrefix + query
-	slog.InfoContext(context.TODO(), "IndexPage: Proposed query", "query", output)
+	slog.InfoContext(context.TODO(), "Simulator2026Page: Proposed query", "query", output)
 	return output
 }
 
@@ -175,8 +175,8 @@ func (Parcel) TableName() string {
 	return "parcel"
 }
 
-func (c *IndexPage) OnMount(ctx app.Context) {
-	slog.InfoContext(ctx.Context, "IndexPage: OnMount")
+func (c *Simulator2026Page) OnMount(ctx app.Context) {
+	slog.InfoContext(ctx.Context, "Simulator2026Page: OnMount")
 
 	c.maximumRateMultiplier = 2.0
 	c.proposedApartmentClass = "non-residential"
@@ -213,12 +213,12 @@ func (c *IndexPage) OnMount(ctx app.Context) {
 
 	db, err := database.New(ctx.Context, "sqlite3", "file:/my_shared_db?vfs=memdb&cache=shared&parseTime=true")
 	if err != nil {
-		slog.ErrorContext(ctx.Context, "IndexPage: Error creating database", "err", err)
+		slog.ErrorContext(ctx.Context, "Simulator2026Page: Error creating database", "err", err)
 		return
 	}
 	err = db.AutoMigrate(&Parcel{})
 	if err != nil {
-		slog.ErrorContext(ctx.Context, "IndexPage: Error migrating database", "err", err)
+		slog.ErrorContext(ctx.Context, "Simulator2026Page: Error migrating database", "err", err)
 		return
 	}
 
@@ -226,9 +226,9 @@ func (c *IndexPage) OnMount(ctx app.Context) {
 	schoolDistrictMap := map[string]bool{}
 	unhandledAbbrevations := map[string]uint{}
 
-	subFS, err := fs.Sub(dataset.EmbeddedFS, "embedded")
+	subFS, err := fs.Sub(dataset.FS, "embedded")
 	if err != nil {
-		slog.ErrorContext(ctx.Context, "IndexPage: Error creating sub FS", "err", err)
+		slog.ErrorContext(ctx.Context, "Simulator2026Page: Error creating sub FS", "err", err)
 		return
 	}
 
@@ -246,7 +246,7 @@ func (c *IndexPage) OnMount(ctx app.Context) {
 		}
 
 		header := rows[0]
-		slog.InfoContext(ctx.Context, "IndexPage: Header", "header", header)
+		slog.InfoContext(ctx.Context, "Simulator2026Page: Header", "header", header)
 		rows = rows[1:]
 
 		headerToIndexMap := map[string]int{}
@@ -345,17 +345,17 @@ func (c *IndexPage) OnMount(ctx app.Context) {
 
 	fs.WalkDir(subFS, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			slog.ErrorContext(ctx.Context, "IndexPage: Error walking directory", "err", err)
+			slog.ErrorContext(ctx.Context, "Simulator2026Page: Error walking directory", "err", err)
 			return err
 		}
 		if d.IsDir() {
 			return nil
 		}
 		if strings.HasPrefix(path, "parcels.") && strings.HasSuffix(path, ".csv") {
-			slog.InfoContext(ctx.Context, "IndexPage: Found CSV file", "path", path)
+			slog.InfoContext(ctx.Context, "Simulator2026Page: Found CSV file", "path", path)
 			err := parseParcelFile(path)
 			if err != nil {
-				slog.ErrorContext(ctx.Context, "IndexPage: Error parsing parcel file", "err", err)
+				slog.ErrorContext(ctx.Context, "Simulator2026Page: Error parsing parcel file", "err", err)
 				return err
 			}
 		}
@@ -370,7 +370,7 @@ func (c *IndexPage) OnMount(ctx app.Context) {
 		return nil
 	})
 	if err != nil {
-		slog.ErrorContext(ctx.Context, "IndexPage: Error creating parcels", "err", err)
+		slog.ErrorContext(ctx.Context, "Simulator2026Page: Error creating parcels", "err", err)
 		return
 	}
 
@@ -380,15 +380,15 @@ func (c *IndexPage) OnMount(ctx app.Context) {
 	slices.Sort(c.schoolDistricts)
 
 	if len(unhandledAbbrevations) > 0 {
-		slog.ErrorContext(ctx.Context, "IndexPage: Unhandled abbreviations", "abbrevations", unhandledAbbrevations)
+		slog.ErrorContext(ctx.Context, "Simulator2026Page: Unhandled abbreviations", "abbrevations", unhandledAbbrevations)
 	}
 }
 
-func (c *IndexPage) OnNav(ctx app.Context) {
-	slog.InfoContext(ctx.Context, "IndexPage: OnNav")
+func (c *Simulator2026Page) OnNav(ctx app.Context) {
+	slog.InfoContext(ctx.Context, "Simulator2026Page: OnNav")
 }
 
-func (c *IndexPage) Render() app.UI {
+func (c *Simulator2026Page) Render() app.UI {
 	columns := []blazar.TableColumn[PropertyClassResult]{
 		{
 			Name: "Property Class",
@@ -662,7 +662,7 @@ func (c *IndexPage) Render() app.UI {
 							Label("Get Property Values").
 							Disabled(c.loading).
 							On("click", func(ctx app.Context, e app.Event) {
-								slog.InfoContext(ctx.Context, "IndexPage: Get Property Values clicked 1", "selectedSchoolDistrict", c.selectedSchoolDistrict)
+								slog.InfoContext(ctx.Context, "Simulator2026Page: Get Property Values clicked 1", "selectedSchoolDistrict", c.selectedSchoolDistrict)
 
 								c.loading = true
 								ctx.After(100*time.Millisecond, func(ctx app.Context) {
@@ -672,7 +672,7 @@ func (c *IndexPage) Render() app.UI {
 									ctx.Update()
 								})
 
-								slog.InfoContext(ctx.Context, "IndexPage: Get Property Values clicked 2", "selectedSchoolDistrict", c.selectedSchoolDistrict)
+								slog.InfoContext(ctx.Context, "Simulator2026Page: Get Property Values clicked 2", "selectedSchoolDistrict", c.selectedSchoolDistrict)
 							}),
 						app.If(c.loading, func() app.UI {
 							return blazar.ProgressBar().
@@ -808,7 +808,7 @@ func (c *IndexPage) Render() app.UI {
 							Label("Calculate").
 							Disabled(c.calculating).
 							On("click", func(ctx app.Context, e app.Event) {
-								slog.InfoContext(ctx.Context, "IndexPage: Calculate button clicked")
+								slog.InfoContext(ctx.Context, "Simulator2026Page: Calculate button clicked")
 
 								c.calculating = true
 								ctx.After(100*time.Millisecond, func(ctx app.Context) {
@@ -878,8 +878,8 @@ func (c *IndexPage) Render() app.UI {
 		)
 }
 
-func (c *IndexPage) updateForNewSchoolDistrict(ctx app.Context) {
-	slog.InfoContext(ctx.Context, "IndexPage: updateForNewSchoolDistrict", "selectedSchoolDistrict", c.selectedSchoolDistrict)
+func (c *Simulator2026Page) updateForNewSchoolDistrict(ctx app.Context) {
+	slog.InfoContext(ctx.Context, "Simulator2026Page: updateForNewSchoolDistrict", "selectedSchoolDistrict", c.selectedSchoolDistrict)
 
 	if c.selectedSchoolDistrict == "" {
 		return
@@ -909,7 +909,7 @@ ORDER BY parcel.property_class
 		Find(&propertyClassResults).
 		Error
 	if err != nil {
-		slog.ErrorContext(ctx.Context, "IndexPage: Error executing query", "err", err)
+		slog.ErrorContext(ctx.Context, "Simulator2026Page: Error executing query", "err", err)
 		return
 	}
 
@@ -951,7 +951,7 @@ ORDER BY parcel.property_class
 			}
 		}
 		if districtRate.SchoolDistrict == "" {
-			slog.ErrorContext(ctx.Context, "IndexPage: updateForNewSchoolDistrict: District rate not found", "selectedSchoolDistrict", c.selectedSchoolDistrict)
+			slog.ErrorContext(ctx.Context, "Simulator2026Page: updateForNewSchoolDistrict: District rate not found", "selectedSchoolDistrict", c.selectedSchoolDistrict)
 			return
 		}
 
@@ -965,19 +965,19 @@ ORDER BY parcel.property_class
 	})
 }
 
-func (c *IndexPage) refigureProposal(ctx app.Context) {
-	slog.InfoContext(ctx.Context, "IndexPage: apartments are residential", "apartmentsAreResidential", c.proposedApartmentClass)
+func (c *Simulator2026Page) refigureProposal(ctx app.Context) {
+	slog.InfoContext(ctx.Context, "Simulator2026Page: apartments are residential", "apartmentsAreResidential", c.proposedApartmentClass)
 
-	slog.InfoContext(ctx.Context, "IndexPage: rates", "residentialRate", c.residentialRate, "nonResidentialRateMultiplier", c.nonResidentialRateMultiplier)
+	slog.InfoContext(ctx.Context, "Simulator2026Page: rates", "residentialRate", c.residentialRate, "nonResidentialRateMultiplier", c.nonResidentialRateMultiplier)
 
 	iterations := 0
 	for {
 		iterations++
 		if iterations > 100 {
-			slog.ErrorContext(ctx.Context, "IndexPage: refigureProposal: Too many iterations", "iterations", iterations)
+			slog.ErrorContext(ctx.Context, "Simulator2026Page: refigureProposal: Too many iterations", "iterations", iterations)
 			return
 		}
-		slog.ErrorContext(ctx.Context, "IndexPage: refigureProposal", "iterations", iterations)
+		slog.ErrorContext(ctx.Context, "Simulator2026Page: refigureProposal", "iterations", iterations)
 
 		if c.proposedNonResidentialRateMultiplier > c.maximumRateMultiplier {
 			c.proposedNonResidentialRateMultiplier = c.maximumRateMultiplier
@@ -1002,8 +1002,8 @@ func (c *IndexPage) refigureProposal(ctx app.Context) {
 
 		totalValue := residentialTotalValue + nonResidentialTotalValue + apartmentTotalValue
 
-		slog.InfoContext(ctx.Context, "IndexPage: original values", "residentialTotalValue", printer.Sprintf("$%.0f", residentialTotalValue), "nonResidentialTotalValue", printer.Sprintf("$%.0f", nonResidentialTotalValue), "apartmentTotalValue", printer.Sprintf("$%.0f", apartmentTotalValue))
-		slog.InfoContext(ctx.Context, "IndexPage: total value", "totalValue", printer.Sprintf("$%.0f", totalValue))
+		slog.InfoContext(ctx.Context, "Simulator2026Page: original values", "residentialTotalValue", printer.Sprintf("$%.0f", residentialTotalValue), "nonResidentialTotalValue", printer.Sprintf("$%.0f", nonResidentialTotalValue), "apartmentTotalValue", printer.Sprintf("$%.0f", apartmentTotalValue))
+		slog.InfoContext(ctx.Context, "Simulator2026Page: total value", "totalValue", printer.Sprintf("$%.0f", totalValue))
 
 		currentApartmentMultiplier := c.nonResidentialRateMultiplier
 		var proposedApartmentMultiplier float64
@@ -1017,13 +1017,13 @@ func (c *IndexPage) refigureProposal(ctx app.Context) {
 		}
 
 		testRevenue := c.residentialRate/100.0*residentialTotalValue + c.nonResidentialRateMultiplier*c.residentialRate/100.0*nonResidentialTotalValue + currentApartmentMultiplier*c.residentialRate/100.0*apartmentTotalValue
-		slog.InfoContext(ctx.Context, "IndexPage: revenue", "oldRevenue", printer.Sprintf("$%.0f", c.totalTax), "original testRevenue", printer.Sprintf("$%.0f", testRevenue))
+		slog.InfoContext(ctx.Context, "Simulator2026Page: revenue", "oldRevenue", printer.Sprintf("$%.0f", c.totalTax), "original testRevenue", printer.Sprintf("$%.0f", testRevenue))
 
 		newResidentialTotalValue := residentialTotalValue
 		newNonResidentialTotalValue := nonResidentialTotalValue
 		newApartmentTotalValue := apartmentTotalValue
 
-		slog.InfoContext(ctx.Context, "IndexPage: new values", "newResidentialTotalValue", printer.Sprintf("$%.0f", newResidentialTotalValue), "newNonResidentialTotalValue", printer.Sprintf("$%.0f", newNonResidentialTotalValue))
+		slog.InfoContext(ctx.Context, "Simulator2026Page: new values", "newResidentialTotalValue", printer.Sprintf("$%.0f", newResidentialTotalValue), "newNonResidentialTotalValue", printer.Sprintf("$%.0f", newNonResidentialTotalValue))
 
 		trueTotalTax := 0.0
 		for _, propertyClassResult := range c.propertyClassResults2025 {
@@ -1051,12 +1051,12 @@ func (c *IndexPage) refigureProposal(ctx app.Context) {
 		// ( ( Revenue * 100 / Residential Rate ) - Residential Value - Apartment Value * Apartment Multiplier ) / Non-Residential Value = Multiplier
 
 		newMultiplier := (c.totalTax*100.0/c.proposedResidentialRate - newResidentialTotalValue - newApartmentTotalValue*proposedApartmentMultiplier) / newNonResidentialTotalValue
-		slog.InfoContext(ctx.Context, "IndexPage: new multiplier", "newMultiplier", fmt.Sprintf("%.4f", newMultiplier))
-		slog.InfoContext(ctx.Context, "IndexPage: new rates", "residentialRate", fmt.Sprintf("%.4f", c.proposedResidentialRate), "nonResidentialRate", fmt.Sprintf("%.4f", c.proposedResidentialRate*newMultiplier))
+		slog.InfoContext(ctx.Context, "Simulator2026Page: new multiplier", "newMultiplier", fmt.Sprintf("%.4f", newMultiplier))
+		slog.InfoContext(ctx.Context, "Simulator2026Page: new rates", "residentialRate", fmt.Sprintf("%.4f", c.proposedResidentialRate), "nonResidentialRate", fmt.Sprintf("%.4f", c.proposedResidentialRate*newMultiplier))
 
 		if newMultiplier <= c.maximumRateMultiplier {
 			newRevenue := c.proposedResidentialRate/100.0*newResidentialTotalValue + newMultiplier*c.proposedResidentialRate/100.0*newNonResidentialTotalValue
-			slog.InfoContext(ctx.Context, "IndexPage: revenue", "oldRevenue", printer.Sprintf("$%.0f", c.totalTax), "newRevenue", printer.Sprintf("$%.0f", newRevenue))
+			slog.InfoContext(ctx.Context, "Simulator2026Page: revenue", "oldRevenue", printer.Sprintf("$%.0f", c.totalTax), "newRevenue", printer.Sprintf("$%.0f", newRevenue))
 
 			c.proposedNonResidentialRateMultiplier = newMultiplier
 		} else {
@@ -1066,7 +1066,7 @@ func (c *IndexPage) refigureProposal(ctx app.Context) {
 		c.proposedNonResidentialRate = c.proposedResidentialRate * c.proposedNonResidentialRateMultiplier
 
 		testRevenue = c.proposedResidentialRate/100.0*residentialTotalValue + c.proposedNonResidentialRateMultiplier*c.proposedResidentialRate/100.0*nonResidentialTotalValue + proposedApartmentMultiplier*c.proposedResidentialRate/100.0*apartmentTotalValue
-		slog.InfoContext(ctx.Context, "IndexPage: revenue", "oldRevenue", printer.Sprintf("$%.0f", c.totalTax), "final testRevenue", printer.Sprintf("$%.0f", testRevenue))
+		slog.InfoContext(ctx.Context, "Simulator2026Page: revenue", "oldRevenue", printer.Sprintf("$%.0f", c.totalTax), "final testRevenue", printer.Sprintf("$%.0f", testRevenue))
 
 		if math.Abs((testRevenue-c.totalTax)/c.totalTax) < 0.005 {
 			break
@@ -1082,14 +1082,14 @@ func (c *IndexPage) refigureProposal(ctx app.Context) {
 		}
 	}
 
-	slog.InfoContext(ctx.Context, "IndexPage: refigureProposal: done", "iterations", iterations)
-	slog.InfoContext(ctx.Context, "IndexPage: refigureProposal: new rates", "residentialRate", fmt.Sprintf("%.4f", c.proposedResidentialRate), "nonResidentialRate", fmt.Sprintf("%.4f", c.proposedNonResidentialRate), "nonResidentialRateMultiplier", fmt.Sprintf("%.4f", c.proposedNonResidentialRateMultiplier))
+	slog.InfoContext(ctx.Context, "Simulator2026Page: refigureProposal: done", "iterations", iterations)
+	slog.InfoContext(ctx.Context, "Simulator2026Page: refigureProposal: new rates", "residentialRate", fmt.Sprintf("%.4f", c.proposedResidentialRate), "nonResidentialRate", fmt.Sprintf("%.4f", c.proposedNonResidentialRate), "nonResidentialRateMultiplier", fmt.Sprintf("%.4f", c.proposedNonResidentialRateMultiplier))
 
 	ctx.Update()
 }
 
-func (c *IndexPage) calculateProposedPropertyClassResults(ctx app.Context) {
-	slog.InfoContext(ctx.Context, "IndexPage: calculateProposedPropertyClassResults")
+func (c *Simulator2026Page) calculateProposedPropertyClassResults(ctx app.Context) {
+	slog.InfoContext(ctx.Context, "Simulator2026Page: calculateProposedPropertyClassResults")
 
 	if c.selectedSchoolDistrict == "" {
 		return
@@ -1120,7 +1120,7 @@ ORDER BY parcel.property_class
 		Find(&propertyClassResults).
 		Error
 	if err != nil {
-		slog.ErrorContext(ctx.Context, "IndexPage: calculateProposedPropertyClassResults: Error executing query", "err", err)
+		slog.ErrorContext(ctx.Context, "Simulator2026Page: calculateProposedPropertyClassResults: Error executing query", "err", err)
 		return
 	}
 
