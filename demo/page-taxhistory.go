@@ -35,7 +35,8 @@ type TaxHistoryPage struct {
 	selectedSchoolDistrict string
 	selectedTaxDistrict    string
 
-	yearResults [][]HistoryPropertyClassResult
+	yearResults             [][]HistoryPropertyClassResult
+	yearResultsAsSplittable [][]HistoryPropertyClassResult
 }
 
 type HistoryParcel struct {
@@ -420,6 +421,42 @@ func (c *TaxHistoryPage) Render() app.UI {
 		},
 	}
 
+	splittableColumns := []blazar.TableColumn[HistoryPropertyClassResult]{
+		{
+			Name: "Property Class",
+			Value: func(row HistoryPropertyClassResult) any {
+				return row.PropertyClass
+			},
+		},
+		{
+			Name: "Property Count",
+			Value: func(row HistoryPropertyClassResult) any {
+				return row.PropertyCount
+			},
+			Type: blazar.TableColumnTypeNumber,
+		},
+		{
+			Name: "Total Value",
+			Value: func(row HistoryPropertyClassResult) any {
+				return row.PropertyValue
+			},
+			Format: func(value any) any {
+				return fmt.Sprintf("$%v", blazar.TableColumnFormatNumber(value))
+			},
+			Type: blazar.TableColumnTypeNumber,
+		},
+		{
+			Name: "Percentage",
+			Value: func(row HistoryPropertyClassResult) any {
+				return 100.0 * row.PropertyValue / yearTotalValueMap[row.Year]
+			},
+			Format: func(value any) any {
+				return fmt.Sprintf("%v%%", blazar.TableColumnFormatNumber(value))
+			},
+			Type: blazar.TableColumnTypeNumber,
+		},
+	}
+
 	return blazar.Page().
 		Body(
 			blazar.Select().
@@ -526,6 +563,7 @@ func (c *TaxHistoryPage) Render() app.UI {
 				yearResults := c.yearResults[i]
 
 				return app.Div().
+					Style("--simplechart-radius", "12vmin").
 					Body(
 						app.H3().Text(fmt.Sprintf("Year %d", yearResults[0].Year)),
 						app.Div().
@@ -555,6 +593,73 @@ func (c *TaxHistoryPage) Render() app.UI {
 									Style("font-size", "0.9em").
 									Rows(yearResults).
 									Columns(columns),
+							),
+					)
+			}),
+			app.Div().
+				Style("display", "flex").
+				Style("flex-direction", "row").
+				Style("--simplechart-radius", "10vmin").
+				Body(
+					app.Range(c.yearResultsAsSplittable).Slice(func(i int) app.UI {
+						yearResultsAsSplittable := c.yearResultsAsSplittable[i]
+
+						return app.Div().
+							Body(
+								app.H3().Text(fmt.Sprintf("Year %d", yearResultsAsSplittable[0].Year)),
+								simplechart.SimpleChart().
+									Label("Property Value").
+									Items(func() []simplechart.SimpleChartItem {
+										var items []simplechart.SimpleChartItem
+										totalValue := 0.0
+										for _, propertyClassResult := range yearResultsAsSplittable {
+											totalValue += propertyClassResult.PropertyValue
+										}
+										for _, propertyClassResult := range yearResultsAsSplittable {
+											items = append(items, simplechart.SimpleChartItem{
+												Label: propertyClassResult.PropertyClass,
+												Value: 100.0 * propertyClassResult.PropertyValue / totalValue,
+											})
+										}
+										return items
+									}()),
+							)
+					}),
+				),
+			app.Range(c.yearResultsAsSplittable).Slice(func(i int) app.UI {
+				yearResultsAsSplittable := c.yearResultsAsSplittable[i]
+
+				return app.Div().
+					Style("--simplechart-radius", "12vmin").
+					Body(
+						app.H3().Text(fmt.Sprintf("Year %d", yearResultsAsSplittable[0].Year)),
+						app.Div().
+							Style("flex", "1").
+							Style("display", "flex").
+							Style("flex-direction", "row").
+							Style("flex-wrap", "wrap").
+							Style("gap", "1em").
+							Body(
+								simplechart.SimpleChart().
+									Label("Property Value").
+									Items(func() []simplechart.SimpleChartItem {
+										var items []simplechart.SimpleChartItem
+										totalValue := 0.0
+										for _, propertyClassResult := range yearResultsAsSplittable {
+											totalValue += propertyClassResult.PropertyValue
+										}
+										for _, propertyClassResult := range yearResultsAsSplittable {
+											items = append(items, simplechart.SimpleChartItem{
+												Label: propertyClassResult.PropertyClass,
+												Value: 100.0 * propertyClassResult.PropertyValue / totalValue,
+											})
+										}
+										return items
+									}()),
+								blazar.Table[HistoryPropertyClassResult]().
+									Style("font-size", "0.9em").
+									Rows(yearResultsAsSplittable).
+									Columns(splittableColumns),
 							),
 					)
 			}),
@@ -629,6 +734,47 @@ ORDER BY parcel.property_class, parcel_history.year
 		c.yearResults = make([][]HistoryPropertyClassResult, 0, len(c.years))
 		for _, year := range years {
 			c.yearResults = append(c.yearResults, yearToResultsMap[year])
+		}
+
+		c.yearResultsAsSplittable = make([][]HistoryPropertyClassResult, 0, len(c.years))
+		for _, yearResults := range c.yearResults {
+			year := yearResults[0].Year
+
+			residentialMap := map[string]bool{
+				"residential": true,
+				"commercial":  false,
+				"farmland":    true,
+				"industrial":  false,
+				"utilities":   false,
+				"apartment":   false,
+			}
+
+			residentialRow := HistoryPropertyClassResult{
+				PropertyClass: "Residential",
+				Year:          year,
+				PropertyCount: 0,
+				PropertyValue: 0,
+				AverageValue:  0, // We can't compute this.
+				MedianValue:   0, // We can't compute this.
+			}
+			nonResidentialRow := HistoryPropertyClassResult{
+				PropertyClass: "Non-Residential",
+				Year:          year,
+				PropertyCount: 0,
+				PropertyValue: 0,
+				AverageValue:  0, // We can't compute this.
+				MedianValue:   0, // We can't compute this.
+			}
+			for _, yearResult := range yearResults {
+				if residentialMap[yearResult.PropertyClass] {
+					residentialRow.PropertyCount += yearResult.PropertyCount
+					residentialRow.PropertyValue += yearResult.PropertyValue
+				} else {
+					nonResidentialRow.PropertyCount += yearResult.PropertyCount
+					nonResidentialRow.PropertyValue += yearResult.PropertyValue
+				}
+			}
+			c.yearResultsAsSplittable = append(c.yearResultsAsSplittable, []HistoryPropertyClassResult{residentialRow, nonResidentialRow})
 		}
 
 		ctx.Update()
