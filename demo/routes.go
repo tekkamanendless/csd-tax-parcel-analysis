@@ -13,20 +13,19 @@ func Routes() []router.Route {
 			Component: func() app.Composer {
 				return blazar.MainLayout().
 					HeadlineText("CSD Tax Parcel Tools").
-					DrawerFunction(func() app.UI {
-						return app.Div().
-							Body(
-								blazar.Item().
-									Label("Home").
-									To("/"),
-								blazar.Item().
-									Label("2026 Tax Simulator").
-									To("/2026-tax-simulator"),
-								blazar.Item().
-									Label("2026 Tax History").
-									To("/2026-tax-history"),
-							)
-					})
+					DrawerBody(app.Div().
+						Body(
+							blazar.Item().
+								Label("Home").
+								To("/"),
+							blazar.Item().
+								Label("2026 Tax Simulator").
+								To("/2026-tax-simulator"),
+							blazar.Item().
+								Label("2026 Tax History").
+								To("/2026-tax-history"),
+						),
+					)
 			},
 			Children: []router.Route{
 				{
